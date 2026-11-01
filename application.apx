@@ -1,0 +1,57 @@
+app MAPS-DEV (
+    name: maps-dev
+    logo {
+        type: text
+        text: maps-dev
+    }
+    navigation {
+        homeUrl: {
+            page: 1
+        }
+        loginUrl: {
+            page: LOGIN
+        }
+    }
+    navigationMenu {
+        listTemplate: @/side-navigation-menu
+        templateOptions: [
+            #DEFAULT#
+            t-TreeNav--styleA
+            js-navCollapsed--hidden
+        ]
+        list: @navigation-menu
+    }
+    navigationBar {
+        list: @navigation-bar
+        listTemplate: @/navigation-bar
+        templateOptions: #DEFAULT#
+    }
+    userInterface {
+        currentTheme: @universal-theme
+        globalPage: 0
+        addBuiltWithApexToFooter: false
+    }
+    appFormatMasks {
+        date: DS
+        timestamp: DS
+        timestampTimeZone: DS
+    }
+    authentication {
+        scheme: @oracle-apex-accounts
+    }
+    sessionStateProtection {
+        checksumSalt: 0709A58445DBEACE888290EEB59EE3EFF39B5978A6B04EE5D8E70A3E641645E7
+    }
+    runtime {
+        allowFeedback: true
+        compatibilityMode: 24.2
+    }
+
+    substitution APP_NAME (
+        value {
+            staticValue: maps-dev
+        }
+    )
+
+)
+

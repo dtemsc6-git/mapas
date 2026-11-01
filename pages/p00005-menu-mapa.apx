@@ -1,0 +1,162 @@
+page 5 (
+    name: Menu Mapa
+    alias: MENU-MAPA
+    title: Menu Mapa
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region acciones (
+        name: ACCIONES
+        type: list
+        source {
+            list: @menu-ceo
+        }
+        layout {
+            sequence: 30
+            slot: contentBody
+        }
+        appearance {
+            template: @/blank-with-attributes-no-grid
+            templateOptions: #DEFAULT#
+        }
+        accessibility {
+            landmarkType: region
+        }
+        componentAppearance {
+            listTemplate: @/links-list
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region mensaje (
+        name: MENSAJE
+        title: Mensaje
+        type: staticContent
+        source {
+            htmlCode: No se selecciono el Trazado
+        }
+        layout {
+            sequence: 20
+            slot: contentBody
+        }
+        appearance {
+            template: @/alert
+            templateOptions: [
+                #DEFAULT#
+                t-Alert--horizontal
+                t-Alert--defaultIcons
+                t-Alert--warning
+                t-Alert--removeHeading js-removeLandmark
+            ]
+        }
+        serverSideCondition {
+            type: itemIsNull
+            item: P5_FO_ID
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P5_FO_ID (
+        type: popupLov
+        label {
+            label: Fo Id
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select distinct nombre, ef.id
+                from sgt_enlaces_fo ef
+                join sgt_trazados_fo2 tf on ef.id = tf.fo_id 
+                
+                where 
+                SDO_NN(
+                    tf.sdo_data,  -- Columna con el índice espacial
+                    SDO_GEOMETRY(        -- Geometría de búsqueda (tu punto)
+                        2001,            -- Tipo: punto 2D
+                        4326,            -- SRID (ej. WGS84)
+                        SDO_POINT_TYPE(:P5_LNG, :P5_LAT, NULL), -- Coordenadas
+                        NULL,
+                        NULL
+                    ),
+                    'distance=1 unit=km', -- Parámetros: 5 más cercanos en M
+                    1                        -- Tag para SDO_NN_DISTANCE
+                ) = 'TRUE'
+                
+                
+                
+                
+                ```
+        }
+        layout {
+            sequence: 10
+            slot: contentBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P5_LAT (
+        type: textField
+        label {
+            label: Lat
+            alignment: left
+        }
+        layout {
+            sequence: 50
+            slot: contentBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P5_LNG (
+        type: textField
+        label {
+            label: Lng
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            slot: contentBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+)
+

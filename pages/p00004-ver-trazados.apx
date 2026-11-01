@@ -1,0 +1,1696 @@
+page 4 (
+    name: Ver trazados
+    alias: VER-TRAZADOS
+    title: Ver trazados
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    javaScript {
+        fileUrls: [
+            https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js
+            https://unpkg.com/@tmcw/togeojson@5.8.1/dist/togeojson.umd.js
+        ]
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            // Función para cargar KMZ desde la base de datos APEX
+            async function loadKMZFromDatabase(pKmzBlob) {
+                // Si es KMZ (archivo comprimido)
+                console.log("loadKMZFromDatabase");
+                if (pKmzBlob.type === 'application/vnd.google-earth.kmz') {
+                    console.log("dentro de: application/vnd.google-earth.kmz");
+                    const zip = await JSZip.loadAsync(pKmzBlob);
+                    const kmlFile = zip.file(/\.kml$/i)[0];
+                    const kmlText = await kmlFile.async('text');
+                    return toGeoJSON.kml(new DOMParser().parseFromString(kmlText, 'text/xml'));
+                }
+                // Si es KML directo
+                else {
+                    return toGeoJSON.kml(new DOMParser().parseFromString(pKmzBlob, 'text/xml'));
+                }
+            }
+            //Funcion para interoperatibilidad
+            function b64toBlob(b64Data, contentType = '') {
+                const byteCharacters = atob(b64Data);
+                const byteArrays = [];
+                for (let i = 0; i < byteCharacters.length; i += 512) {
+                    byteArrays.push(new Uint8Array(
+                        byteCharacters.slice(i, i + 512).split('').map(c => c.charCodeAt(0))
+                    ));
+                }
+                return new Blob(byteArrays, { type: contentType });
+            }
+            
+            //Cargar datos a un mapa
+            function cargarDatos(json) {
+                console.log("Cargar datos!!!...");
+                console.log(json);
+                if (json) {
+                    var mapRegion = apex.region("Mapa");
+                    var map = mapRegion.getMapObject();
+            
+                    //Si la capa existe la remuevo
+                    if (map.getLayer('capa_puntos')) {
+                        map.removeLayer('capa_puntos');
+                        map.removeSource('Puntos');
+                    }
+            
+                    if (map.getLayer('capa_lineas')) {
+                        map.removeLayer('capa_lineas');
+                        map.removeSource('Lineas');
+                    }
+                    //Remover marcadores
+                    var puntos = {
+                        type: "FeatureCollection",
+                        features: []
+                    };
+            
+                    var lineas = {
+                        type: "FeatureCollection",
+                        features: []
+                    };
+            
+                    var popup = new maplibregl.Popup({
+                        offset: 25,
+                        closeButton: false,
+                        closeOnClick: false
+                    });
+            
+                    //Agregar datos a las lineas
+                    var bounds = new maplibregl.LngLatBounds();
+                    json.features.forEach(function (feature) {
+                        var coords = feature.geometry.coordinates;
+                        bounds.extend([coords[0], coords[1]]);
+                        if (feature.geometry.type === "Point") {
+                            puntos.features.push(feature);
+                        }
+                        else if (feature.geometry.type === "LineString") {
+                            lineas.features.push(feature);
+                        }
+                    }
+                    )
+            
+                    if (map.getSource('Puntos')) {
+                        map.getSource('Puntos').setData(puntos);
+                    }
+                    else {
+                        map.addSource('Puntos', {
+                            type: 'geojson',
+                            data: puntos
+                        });
+                        map.addLayer({
+                            id: 'capa_puntos',
+                            type: 'circle',
+                            source: 'Puntos',
+                            paint: {
+                                'circle-radius': 10,
+                                'circle-color': '#B42222',
+                                'circle-stroke-width': 2,
+                                'circle-stroke-color': '#FFFFFF'
+                            }
+                        });
+            
+                    }
+            
+                    if (map.getSource('Lineas')) {
+                        map.getSource('Lineas').setData(lineas);
+                    }
+                    else {
+                        map.addSource('Lineas', {
+                            type: 'geojson',
+                            data: lineas
+                        });
+                        map.addLayer({
+                            id: 'capa_lineas',
+                            type: 'line',
+                            source: 'Lineas',
+                            paint: {
+                                'line-color': '#0000FF',
+                                'line-width': 3
+                            }
+                        });
+            
+                    }
+                    agregarTooltips(map, 'capa_puntos', 'name');
+                    agregarTooltips(map, 'capa_lineas', 'name');
+                    map.fitBounds(bounds, { padding: 50 });
+                }
+            }
+            
+            function getKmz() {
+                apex.server.process(
+                    'GET_KMZ', { pageItems: ['P15_PK_ID', 'P15_KMZ'] },
+                    {
+                        success: async function (apiData) {
+            
+                            console.log("KMZ del enlace:");
+                          
+                            //Para evitar la doble conversion
+                            const miBlob = b64toBlob(apiData.kmz_data, apiData.mimetype);
+                            const json = await loadKMZFromDatabase(miBlob);
+                            cargarDatos(json);  
+            
+                        },
+                        error: function (error) {
+                            console.log("Se produjo un error:");
+                            console.log(error);
+                        }
+                    }
+                );
+            
+            }
+            
+            function agregarTooltips(mapa, layerId, propiedad) {
+                const popup = new maplibregl.Popup({ offset: 25 });
+            
+                 mapa.on('mouseenter', layerId, (e) => {
+                    mapa.getCanvas().style.cursor = 'pointer';
+                    const propiedades = e.features[0].properties;
+                    const contenido = propiedades[propiedad] || JSON.stringify(propiedades);
+                    
+                    popup.setLngLat(e.lngLat)
+                         .setHTML(`<strong>Nombre:</strong><br>${contenido}`)
+                         .addTo(mapa);
+                });
+                
+                mapa.on('mouseleave', layerId, () => {
+                    mapa.getCanvas().style.cursor = '';
+                    popup.remove();
+                });
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region nuevo (
+        name: Nuevo
+        type: themeTemplateComponent/contentRow
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select ARCH.ID,
+                       ENTIDAD,
+                       PK_ID,
+                       ARCH.ESTADO,
+                       FO.NOMBRE,
+                       FO.CERTIFICACIÓN,
+                       FILE_NAME,
+                       FILE_MIMETYPE,
+                       FILE_CHARSET,
+                       FILE_BLOB,
+                       ARCH.OBSERVACIONES,
+                       ARCH.CREADO_POR,
+                       ARCH.CREADO_EL,
+                       ARCH.ACTUALIZADO_POR,
+                       ARCH.ACTUALIZADO_EL,
+                       INTERNAL_ATTR
+                  from SGT_ARCHIVOS ARCH
+                   JOIN SGT_ENLACES_FO FO ON PK_ID = FO.ID
+                
+                   WHERE ENTIDAD = 5
+                
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: REGION_POSITION_02
+        }
+        appearance {
+            template: @/blank-with-attributes-no-grid
+            templateOptions: #DEFAULT#
+        }
+        accessibility {
+            landmarkType: region
+        }
+        advanced {
+            customAttributes: data-id=&ID.
+        }
+        componentAppearance {
+            display: report
+        }
+        settings {
+            overline: &CREADO_POR. EL: &CREADO_EL.
+            title: &NOMBRE.
+            description: &OBSERVACIONES.
+            miscellaneous: &CERTIFICACION.
+            displayAvatar: true
+        }
+        plugin-avatar {
+            icon: fa-line-map
+        }
+        rowSelection {
+            type: singleSelection
+            currentSelectionPageItem: P4_SELECCION
+        }
+
+        column ACTUALIZADO_EL (
+            layout {
+                sequence: 230
+            }
+            source {
+                databaseColumn: ACTUALIZADO_EL
+                dataType: timestamp
+            }
+        )
+
+        column ACTUALIZADO_POR (
+            layout {
+                sequence: 220
+            }
+            source {
+                databaseColumn: ACTUALIZADO_POR
+                dataType: varchar2
+            }
+        )
+
+        column CERTIFICACIÓN (
+            layout {
+                sequence: 330
+            }
+            source {
+                databaseColumn: CERTIFICACIÓN
+                dataType: number
+            }
+        )
+
+        column CREADO_EL (
+            layout {
+                sequence: 210
+            }
+            source {
+                databaseColumn: CREADO_EL
+                dataType: timestamp
+            }
+        )
+
+        column CREADO_POR (
+            layout {
+                sequence: 200
+            }
+            source {
+                databaseColumn: CREADO_POR
+                dataType: varchar2
+            }
+        )
+
+        column ENTIDAD (
+            layout {
+                sequence: 240
+            }
+            source {
+                databaseColumn: ENTIDAD
+                dataType: number
+            }
+        )
+
+        column ESTADO (
+            layout {
+                sequence: 150
+            }
+            source {
+                databaseColumn: ESTADO
+                dataType: number
+            }
+        )
+
+        column FILE_BLOB (
+            layout {
+                sequence: 290
+            }
+            source {
+                databaseColumn: FILE_BLOB
+                dataType: blob
+            }
+        )
+
+        column FILE_CHARSET (
+            layout {
+                sequence: 280
+            }
+            source {
+                databaseColumn: FILE_CHARSET
+                dataType: varchar2
+            }
+        )
+
+        column FILE_MIMETYPE (
+            layout {
+                sequence: 270
+            }
+            source {
+                databaseColumn: FILE_MIMETYPE
+                dataType: varchar2
+            }
+        )
+
+        column FILE_NAME (
+            layout {
+                sequence: 260
+            }
+            source {
+                databaseColumn: FILE_NAME
+                dataType: varchar2
+            }
+        )
+
+        column ID (
+            layout {
+                sequence: 10
+            }
+            source {
+                databaseColumn: ID
+                dataType: number
+                primaryKey: true
+            }
+        )
+
+        column INTERNAL_ATTR (
+            layout {
+                sequence: 310
+            }
+            source {
+                databaseColumn: INTERNAL_ATTR
+                dataType: varchar2
+            }
+        )
+
+        column NOMBRE (
+            layout {
+                sequence: 320
+            }
+            source {
+                databaseColumn: NOMBRE
+                dataType: varchar2
+            }
+        )
+
+        column OBSERVACIONES (
+            layout {
+                sequence: 300
+            }
+            source {
+                databaseColumn: OBSERVACIONES
+                dataType: varchar2
+            }
+        )
+
+        column PK_ID (
+            layout {
+                sequence: 250
+            }
+            source {
+                databaseColumn: PK_ID
+                dataType: number
+            }
+        )
+
+        action action (
+            position: primaryActions
+            template: menu
+            label: Nuevo
+            layout {
+                sequence: 10
+            }
+
+            menu nuevo (
+                label: Nuevo
+                layout {
+                    sequence: 10
+                }
+                behavior {
+                    target: {
+                        page: 2
+                    }
+                }
+            )
+
+        )
+
+    )
+
+    region nuevo_1 (
+        name: Nuevo
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: REGION_POSITION_02
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+        }
+    )
+
+    region ruta-de-navegación (
+        name: Ruta de Navegación
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: [
+                #DEFAULT#
+                t-BreadcrumbRegion--useBreadcrumbTitle
+            ]
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region ver-trazados (
+        name: Mapa
+        type: map
+        layout {
+            sequence: 70
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: Mapa
+        }
+        config {
+            buildOption: @commented-out
+        }
+        controls {
+            options: [
+                scaleBar
+                rectangleZoom
+                distanceTool
+            ]
+        }
+        attributes {
+            messagesPosition: below
+        }
+
+        layer ver-trazados (
+            name: TRAZADOS
+            label {
+                label: Sample Data
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                type: sqlQuery
+                sqlQuery: select -25.2876535 lat , -57.6131447 lon, '' json from dual;
+            }
+            columnMapping {
+                geometryColumnDataType: longitudeLatitude
+                longitudeColumn: LON
+                latitudeColumn: LAT
+            }
+            tooltip {
+                advancedFormatting: true
+                htmlExpression: <strong>&NAME. (&JOB.)</strong>
+            }
+            infoWindow {
+                advancedFormatting: true
+                htmlExpression: <strong>&NAME.</strong><br><img src="#APEX_FILES#sample_data/employees/&AVATAR_IMAGE." alt="Avatar of &NAME." title="Avatar of &NAME." width="100">
+            }
+        )
+
+    )
+
+    pageItem P4_ALL (
+        type: checkbox
+        label {
+            label: Todos
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @nuevo_1
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    pageItem P4_ARCHIVOS_KMZ (
+        type: popupLov
+        label {
+            label: Archivos Kmz
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT file_name AS DISPLAY, id as valor FROM SGT_ARCHIVOS 
+                WHERE ENTIDAD = 5
+                
+                and pk_id not in (select fo_id from sgt_trazados_fo)
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P4_GEOJSON (
+        type: textarea
+        label {
+            label: New
+            alignment: left
+        }
+        layout {
+            sequence: 50
+            slot: body
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+            height: 5
+        }
+    )
+
+    pageItem P4_ITEMS_POR_PROCESAR (
+        type: textField
+        label {
+            label: Items Por Procesar
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            slot: body
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P4_RESULTADO_SIN_DUP (
+        type: textarea
+        label {
+            label: Resultado Sin Dup
+            alignment: left
+        }
+        layout {
+            sequence: 60
+            slot: body
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+            height: 5
+        }
+    )
+
+    pageItem P4_SELECCION (
+        type: textField
+        label {
+            label: Nuevo
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @nuevo_1
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button nuevo (
+        buttonName: Nuevo
+        label: Generar Base de datos
+        layout {
+            sequence: 30
+            slot: body
+            startNewRow: false
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--large
+                t-Button--iconLeft
+            ]
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    dynamicAction generar-trazado (
+        name: GENERAR_TRAZADO
+        execution {
+            sequence: 30
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @nuevo
+        }
+
+        action check-trazado (
+            name: Check trazado
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    guardar = function() {
+                        //Para evitar la doble conversion
+                                
+                                    apex.server.process('SAVE_BUCLE_TRAZADO', { pageItems : ['P4_ARCHIVOS_KMZ', 'P4_GEOJSON'] }, 
+                                        {
+                                            success: function(data) {
+                                                console.log("SAVE_BUCLE_TRAZADO: Success", data);
+                                                apex.message.showPageSuccess( "Trazado generado!!!..." );
+                                                                      },
+                                            error: function(error) {
+                                                console.log("SAVE_BUCLE_TRAZADO: Error", error);
+                                                apex.message.clearErrors(); 
+                                                apex.message.showErrors ( [ 
+                                                    { type: "error", location: [ "page", "inline" ], pageItem: "P4_GEOJSON", message: "error en el json!", unsafe: false }, { type: "error", location: "page", message: 'Ver datos', unsafe: false } 
+                                                    ] );
+                                            }
+                                        }
+                                    )
+                                 
+                    }
+                    
+                    apex.server.process(
+                            'CHECK_TRAZADO', { pageItems: ['P4_ARCHIVOS_KMZ'] },
+                            {
+                                success: function (data) {
+                    
+                                    console.log("CHECK_TRAZADO: Resultado de la petición:", data);
+                                    guardar();
+                                    
+                                },
+                                error: function (error) {
+                                    console.log("CHECK_TRAZADO: Se produjo un error:");
+                                    console.log(error);
+                                    apex.message.confirm("Se encontro un trazado, desea remplazarlo?",  function(okPressed) {if (okPressed ) {guardar()}}, {title: "Ya existen un trazado", style: "warning",confirmLabel: "Remplazar?"} )
+                                }
+                            }
+                        );
+                    ```
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-alert (
+            action: confirm
+            settings {
+                title: Desea generar un trazado
+                message: Se creará un trazado con los datos cargados.
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new (
+        name: GET_ARCHIVO_KMZ
+        execution {
+            sequence: 20
+        }
+        when {
+            selectionType: items
+            items: P4_ARCHIVOS_KMZ
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    apex.server.process(
+                            'GET_KMZ', { pageItems: ['P4_ARCHIVOS_KMZ'] },
+                            {
+                                success: async function (apiData) {
+                    
+                                    console.log("Resultado de la petición:", apiData);
+                                  
+                                    //Para evitar la doble conversion
+                                    const miBlob = b64toBlob(apiData.kmz_data, apiData.mimetype);
+                                    const json = await loadKMZFromDatabase(miBlob);
+                                    $s('P4_GEOJSON', JSON.stringify(json));
+                                    //cargarDatos(json) ; 
+                    
+                                },
+                                error: function (error) {
+                                    console.log("Se produjo un error:");
+                                    console.log(error);
+                                }
+                            }
+                        );
+                    ```
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new_1 (
+        name: ANALIZAR_GEOJSON
+        execution {
+            sequence: 40
+        }
+        when {
+            selectionType: items
+            items: P4_GEOJSON
+        }
+
+        action native-javascript-code (
+            name: COORD_DUPLICADAS
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    /**
+                     * Analiza un GeoJSON o un array de coordenadas en busca de puntos duplicados o similares.
+                     * @param {Object|Array} geojson - Objeto GeoJSON (FeatureCollection, Feature, Geometry) o un Array de [x, y, z].
+                     * @param {number} tol - Tolerancia en grados (~0.000001 ≈ 0.1 metros; 0 para coincidencia exacta).
+                     * 
+                     * La idea ahora es partir una linea en lineas más manejables cuando la cantidad de vertices supere un cierto umbral
+                     * Supongamos 300 coordenadas por lineas, entonces generar nuevos features por cada linea adicional
+                     * Las propiedades se compartiran.
+                    */
+                    function analizarCoordenadasDuplicadas(geojson, tol = 0.0005) {
+                        let coords = [];
+                        // Extract de coordenadas según el tipo de estructura GeoJSON
+                        if (Array.isArray(geojson)) {
+                            coords = geojson;
+                        } else if (geojson.type === 'FeatureCollection') {
+                            geojson.features.forEach(f => {
+                                if (f.geometry && f.geometry.coordinates) {
+                                    coords = coords.concat(f.geometry.coordinates);
+                                }
+                            });
+                        } else if (geojson.type === 'Feature') {
+                            coords = geojson.geometry.coordinates;
+                        } else if (geojson.coordinates) {
+                            coords = geojson.coordinates;
+                        }
+                    
+                        console.log(`Total de puntos analizados: ${coords.length}`);
+                    
+                        const indicesAEliminar = new Set();
+                        const duplicadosConsecutivos = [];
+                        const duplicadosGlobales = [];
+                    
+                        for (let i = 0; i < coords.length; i++) {
+                            const [x1, y1] = coords[i];
+                            // 1. Detección de duplicados CONSECUTIVOS (Punto A_i idéntico o muy cercano al Punto A_i+1)
+                            // Esto es lo que más corrompe las LineStrings en SDO_UTIL.FROM_GEOJSON
+                            if (i < coords.length - 1) {
+                                const [x2, y2] = coords[i + 1];
+                                const dist2D = Math.hypot(x1 - x2, y1 - y2);
+                    
+                                if (dist2D <= tol) {
+                                    duplicadosConsecutivos.push({
+                                        indiceA: i,
+                                        indiceB: i + 1,
+                                        distanciaGrados: dist2D,
+                                        puntoA: coords[i],
+                                        puntoB: coords[i + 1],
+                                        esExacto: dist2D === 0
+                                    });
+                    
+                                }
+                            }
+                            // 2. Detección de duplicados GLOBALES (El mismo punto repetido en cualquier otra parte del trazado)
+                            // Si el punto i ya fue marcado para eliminar omitir compararlo
+                            if (indicesAEliminar.has(i)) continue;
+                            for (let j = i + 1; j < coords.length; j++) {
+                                const [x2, y2] = coords[j];
+                                const dist2D = Math.hypot(x1 - x2, y1 - y2);
+                    
+                                if (dist2D <= tol && j !== i + 1) {
+                                    duplicadosGlobales.push({
+                                        indiceOriginal: i,
+                                        indiceDuplicado: j,
+                                        distanciaGrados: dist2D,
+                                        punto: coords[i]
+                                    });
+                                    indicesAEliminar.add(j);
+                                }
+                            }
+                        }
+                        // Reporte en Consola
+                        console.group('--- RESULTADOS DEL ANÁLISIS ---');
+                    
+                        // Filtrar la lista original excluyendo los índices duplicados
+                        const coordsLimpias = coords.filter((_, index) => !indicesAEliminar.has(index));
+                        
+                        console.warn(`Puntos Duplicados/Similares CONSECUTIVOS: ${duplicadosConsecutivos.length}`);
+                        if (duplicadosConsecutivos.length > 0) {
+                            console.table(duplicadosConsecutivos);
+                        }
+                    
+                        console.warn(`Puntos Duplicados GLOBALES (Cruces/Lazos): ${duplicadosGlobales.length}`);
+                        if (duplicadosGlobales.length > 0) {
+                            console.table(duplicadosGlobales);
+                        }
+                        console.groupEnd();
+                        return coordsLimpias;
+                    }
+                    ```
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+            config {
+                buildOption: @commented-out
+            }
+        )
+
+        action native-javascript-code_1 (
+            name: DIVIDIR_JSON
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    /**
+                     * Divide un GeoJSON LineString o arreglo de coordenadas en múltiples LineStrings
+                     * con un tamaño máximo especificado por segmento.
+                     * 
+                     * @param {Object|Array} geojson - GeoJSON o Array de coordenadas [[x,y], ...]
+                     * @param {number} maxPuntos - Tamaño máximo de vértices por segmento (por defecto 300)
+                     * @returns {Object} FeatureCollection con las LineStrings divididas
+                     */
+                    function dividirLineString(geojson, maxPuntos = 300) {
+                        let coords = [];
+                        let propiedades = {};
+                    
+                        // 1. Extraer coordenadas y propiedades del objeto de entrada
+                        if (Array.isArray(geojson)) {
+                            coords = geojson;
+                        } else if (geojson.type === 'FeatureCollection') {
+                            geojson.features.forEach(f => {
+                                if (f.geometry && f.geometry.coordinates) {
+                                    coords = coords.concat(f.geometry.coordinates);
+                                }
+                            });
+                            if (geojson.features[0]?.properties) {
+                                propiedades = geojson.features[0].properties;
+                            }
+                        } else if (geojson.type === 'Feature') {
+                            coords = geojson.geometry?.coordinates || [];
+                            propiedades = geojson.properties || {};
+                        } else if (geojson.coordinates) {
+                            coords = geojson.coordinates;
+                        }
+                    
+                        if (coords.length === 0) {
+                            console.warn('No se encontraron coordenadas para procesar.');
+                            return null;
+                        }
+                    
+                        const featuresDivididos = [];
+                        let inicio = 0;
+                    
+                        // 2. Fragmentar en bloques de máximo 'maxPuntos'
+                        while (inicio < coords.length) {
+                            // Tomamos desde 'inicio' hasta 'inicio + maxPuntos'
+                            // El solapamiento (+1) asegura continuidad geográfica entre líneas consecutivas
+                            let fin = inicio + maxPuntos;
+                            
+                            // Si no es el primer segmento, incluimos el último punto del segmento anterior
+                            let segmento = coords.slice(inicio > 0 ? inicio - 1 : inicio, fin);
+                    
+                            if (segmento.length >= 2) {
+                                featuresDivididos.push({
+                                    type: 'Feature',
+                                    properties: {
+                                        ...propiedades,
+                                        segmento_index: featuresDivididos.length + 1,
+                                        total_puntos: segmento.length
+                                    },
+                                    geometry: {
+                                        type: 'LineString',
+                                        coordinates: segmento
+                                    }
+                                });
+                            }
+                    
+                            // Si ya procesamos todo el arreglo, salimos
+                            if (fin >= coords.length) break;
+                            
+                            inicio = fin;
+                        }
+                    
+                        console.log(`Línea original con ${coords.length} puntos dividida en ${featuresDivididos.length} segmento(s).`);
+                    
+                        // 3. Devolver como FeatureCollection
+                        return {
+                            type: 'FeatureCollection',
+                            features: featuresDivididos
+                        };
+                    }
+                    
+                    $s('P4_RESULTADO_SIN_DUP', JSON.stringify(dividirLineString(JSON.parse($v('P4_GEOJSON')), 300)))
+                    ```
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action redondear-coordenadas (
+            name: REMOVER_ALTITUD
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    function limitarDecimalesGeoJSON(geojson, maxDecimales = 6) {
+                      const factor = Math.pow(10, maxDecimales);
+                    
+                      // Redondea un número individual a máximo 'maxDecimales'
+                      function truncar(num) {
+                        
+                          return Math.round((num * factor)) / factor;
+                      }
+                    
+                      // Recorre arrays recursivamente para llegar al par [longitud, latitud, (elevación)]
+                      function procesarCoordenadas(coords) {
+                        if (!Array.isArray(coords)) return coords;
+                        if (typeof coords[0] === 'number') {
+                          return coords.map(truncar);
+                        }
+                        return coords.map(procesarCoordenadas);
+                      }
+                    
+                      // Recorre la estructura del objeto GeoJSON
+                      function procesarObjeto(obj) {
+                        if (!obj || typeof obj !== 'object') return obj;
+                    
+                        // Si es un clon profundo o un nuevo objeto
+                        const copia = Array.isArray(obj) ? [] : { ...obj };
+                    
+                        if (copia.type === 'FeatureCollection' && Array.isArray(copia.features)) {
+                            
+                          copia.features = copia.features.map(procesarObjeto);
+                        } else if (copia.type === 'Feature' && copia.geometry) {
+                            
+                          copia.geometry = procesarObjeto(copia.geometry);
+                        } else if (copia.coordinates) {
+                            
+                          copia.coordinates = procesarCoordenadas(copia.coordinates);
+                        }
+                    
+                        return copia;
+                      }
+                    
+                      return procesarObjeto(geojson);
+                    }
+                    
+                    
+                    
+                    
+                    $s('P4_RESULTADO_SIN_DUP', JSON.stringify(limitarDecimalesGeoJSON(JSON.parse($v('P4_GEOJSON')))))
+                    ```
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+            config {
+                buildOption: @commented-out
+            }
+        )
+
+        action redondear-coordenadas_1 (
+            name: REDONDEAR_COORDENADAS
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    function limpiarGeoJSON(geojson, maxDecimales = 6) {
+                      const numDecimales = Math.min(Math.max(0, maxDecimales), 15);
+                      const factor = Math.pow(10, numDecimales);
+                    
+                      function truncar(num) {
+                        if (typeof num !== 'number' || isNaN(num)) return num;
+                        return Math.round((num + Number.EPSILON) * factor) / factor;
+                      }
+                    
+                      function procesarCoordenadas(coords) {
+                        if (!Array.isArray(coords)) return coords;
+                        
+                        // Si es un par/trío de números [lng, lat, alt]
+                        if (typeof coords[0] === 'number') {
+                          // slice(0, 2) remueve la altitud (tercer elemento) y solo conserva [lng, lat]
+                          return coords.slice(0, 2).map(truncar);
+                        }
+                        
+                        return coords.map(procesarCoordenadas);
+                      }
+                    
+                      function procesarObjeto(obj) {
+                        if (!obj || typeof obj !== 'object') return obj;
+                    
+                        const copia = Array.isArray(obj) ? [] : { ...obj };
+                    
+                        if (copia.type === 'FeatureCollection' && Array.isArray(copia.features)) {
+                          copia.features = copia.features.map(procesarObjeto);
+                        } else if (copia.type === 'Feature' && copia.geometry) {
+                          copia.geometry = procesarObjeto(copia.geometry);
+                        } else if (copia.type === 'GeometryCollection' && Array.isArray(copia.geometries)) {
+                          copia.geometries = copia.geometries.map(procesarObjeto);
+                        } else if (copia.coordinates) {
+                          copia.coordinates = procesarCoordenadas(copia.coordinates);
+                        }
+                    
+                        return copia;
+                      }
+                    
+                      return procesarObjeto(geojson);
+                    }
+                    
+                    // Ejecución en tu Acción Dinámica de APEX
+                    let geojsonOriginal = JSON.parse($v('P4_GEOJSON'));
+                    let geojsonLimpio = limpiarGeoJSON(geojsonOriginal, 6);
+                    
+                    $s('P4_RESULTADO_SIN_DUP', JSON.stringify(geojsonLimpio));
+                    ```
+            }
+            execution {
+                sequence: 50
+                fireOnInit: false
+            }
+            config {
+                buildOption: @commented-out
+            }
+        )
+
+    )
+
+    dynamicAction nuevo (
+        name: Nuevo
+        execution {
+            sequence: 10
+        }
+        when {
+            event: click
+            selectionType: jQuerySelector
+            jquerySelector: .t-ContentRow-item
+        }
+        config {
+            buildOption: @commented-out
+        }
+
+        action native-set-value (
+            name: SETEAR
+            action: executeJsCode
+            settings {
+                jsCode: $s('P4_SELECCION', this.triggeringElement.dataset.id)
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    computation p4-items-por-procesar (
+        itemName: P4_ITEMS_POR_PROCESAR
+        execution {
+            sequence: 10
+        }
+        computation {
+            sqlQuery:
+                ```sql
+                SELECT COUNT(id)  FROM SGT_ARCHIVOS 
+                WHERE ENTIDAD = 5
+                
+                and pk_id not in (select fo_id from sgt_trazados_fo)
+                ```
+        }
+    )
+
+    process check-trazado (
+        name: CHECK_TRAZADO
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                /*
+                Chequear si ya existe un trazad en la db de un enlace dado.
+                */
+                
+                declare
+                v_id integer;
+                --chequea la existencia del trazado
+                v_existe NUMBER(1);
+                
+                begin
+                
+                --Buscar el id del trazado
+                select pk_id into v_id from sgt_archivos
+                where id = :P4_ARCHIVOS_KMZ;
+                
+                --buscar en la db si ya hay un trazado
+                --2026-10-21: CAMBIO PARA CHEQUEAR EN SGT_TRAZADOS_FO
+                SELECT CASE 
+                           WHEN EXISTS (SELECT 1 FROM sgt_trazadoS_fo WHERE fo_id = v_id) THEN 1 
+                           ELSE 0 
+                         END
+                  INTO v_existe
+                  FROM dual;
+                
+                 
+                 --No existen registros se puede guardar
+                 if v_existe = 0 then 
+                    apex_json.open_object;
+                    apex_json.write('success', true);
+                    apex_json.write('guardar', 'ok');
+                    apex_json.close_object;
+                 end if;
+                 
+                end;
+                ```
+        }
+        execution {
+            sequence: 30
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 10418211657306106
+        }
+    )
+
+    process debug-trazado (
+        name: DEBUG_TRAZADO
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                /*
+                Obtener un trazado y cargar los datos en la tabla de trazados.
+                */
+                declare
+                v_id integer := 0;
+                
+                --Declarar el cursor que se utilizara
+                Cursor c_geojson is (SELECT v_id AS ID, jt.type as type, JT.l_name, JT.l_desc,  sdo_util.from_GEOJSON(jt.geometry) AS geom
+                FROM 
+                     JSON_TABLE(
+                        :P4_GEOJSON, 
+                       '$.features[*]'
+                       COLUMNS (
+                         type path '$.geometry.type',
+                         geometry clob format json PATH '$.geometry',
+                         l_name path '$.properties.name',
+                         l_desc path '$.properties.description'
+                       )
+                     ) jt);
+                
+                json_error EXCEPTION;
+                PRAGMA EXCEPTION_INIT(json_error, -40441);
+                --PRAGMA EXCEPTION_INIT(, -40441);
+                
+                begin
+                
+                select pk_id into v_id from sgt_archivos where id = :P4_ARCHIVOS_KMZ;
+                
+                -- no encontro el enlace lanzar un error
+                IF (v_id = 0) then
+                   RAISE_APPLICATION_ERROR(-20001, 'No se encontró el enlace especificado.');
+                end if;   
+                
+                
+                --para evitar duplicados limpiar todos los datos relacionados a este v_id
+                -- No implementado aún
+                
+                --iterar los datos
+                apex_json.open_object; 
+                apex_json.write('success', true);
+                apex_json.write('iniciando bucle', true);
+                for rec in c_geojson loop
+                    apex_json.write('Registro: ', rec.TYPE );
+                    apex_json.write('geojsonData', rec.geom  );
+                    apex_json.write('l_name', rec.l_name  );
+                    apex_json.write('l_desc', rec.l_desc  );
+                end loop;
+                
+                
+                --apex.debug
+                
+                apex_json.close_object;
+                
+                EXCEPTION
+                   when json_error THEN
+                        apex_json.open_object; 
+                        apex_json.write('geo_json', LENGTH(:P4_GEOJSON ));
+                        apex_json.write('sql_error ', SQLERRM);
+                        apex_json.write('success', false);
+                        apex_json.close_object;  
+                    when OTHERS then   
+                        apex_json.open_object; 
+                        apex_json.write('geo_json', LENGTH(:P4_GEOJSON ));
+                        apex_json.write('sql_error ', SQLERRM);
+                        apex_json.write('success', false);
+                        apex_json.close_object;        
+                   
+                end;
+                ```
+        }
+        execution {
+            sequence: 60
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 10419406040306118
+        }
+    )
+
+    process get-kmz (
+        name: GET_KMZ
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                DECLARE
+                    l_blob          BLOB;
+                    l_filename      varchar2(4000);
+                    l_file_mimetype varchar2(4000);
+                    l_base64        CLOB;
+                BEGIN
+                    -- Obtener el KMZ de tu tabla
+                    SELECT file_blob, file_name, file_mimetype INTO l_blob , l_filename, l_file_mimetype
+                    FROM  SGT_ARCHIVOS 
+                    WHERE ID =:P4_ARCHIVOS_KMZ ;
+                    
+                
+                    -- Convertir a Base64
+                    
+                    l_base64 := APEX_WEB_SERVICE.BLOB2CLOBBASE64(
+                        p_blob => l_blob,
+                        p_newlines => 'N',
+                        p_padding => 'Y'
+                    );
+                    
+                    -- Retornar JSON
+                    apex_json.open_object;
+                    apex_json.write('success', true);
+                    apex_json.write('fileName', l_filename);
+                    apex_json.write('mimetype', l_file_mimetype);
+                    apex_json.write('kmz_data', l_base64);
+                    apex_json.close_object;
+                    
+                EXCEPTION
+                    WHEN NO_DATA_FOUND THEN
+                        apex_json.open_object;
+                        apex_json.write('kmz_data');
+                        apex_json.close_object;
+                END;
+                ```
+        }
+        execution {
+            sequence: 20
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 10099312364987846
+        }
+    )
+
+    process get-trazado (
+        name: GET_TRAZADO
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                /*
+                Se trato de convertir el archivo KMZ a uno o varios objetos SDO_GEOMETRY, esta en prueba aún.
+                No utilizar esta funcion aún.
+                */
+                
+                
+                DECLARE
+                    l_kmz          BLOB;
+                    l_kml_blob     BLOB;
+                    l_kml_clob     CLOB;
+                    
+                    l_entries      apex_zip.t_dir_entries;
+                    l_file_path    VARCHAR2(32767);
+                    
+                    -- Variables para la conversión JSON -> SDO
+                    l_geojson_str  CLOB;
+                    geom_result    SDO_GEOMETRY;
+                    val_result     VARCHAR2(100);
+                    
+                    -- Variables auxiliares para formatear el texto
+                    l_coord_clean  CLOB;
+                    
+                    -- Variables para la conversión de BLOB a CLOB
+                    l_dest_offset  INTEGER := 1;
+                    l_src_offset   INTEGER := 1;
+                    l_lang_ctx     INTEGER := DBMS_LOB.default_lang_ctx;
+                    l_warning      INTEGER;
+                BEGIN
+                    -- 1. Obtener el archivo KMZ
+                    SELECT file_blob INTO l_kmz FROM sgt_archivos WHERE id = :P4_SELECCION;
+                
+                    -- 2. Leer entradas del zip
+                    l_entries := apex_zip.get_dir_entries(p_zipped_blob => l_kmz, p_only_files => true);
+                    l_file_path := l_entries.first;
+                
+                    WHILE l_file_path IS NOT NULL LOOP
+                        IF lower(l_file_path) LIKE '%.kml' THEN
+                            l_kml_blob := apex_zip.get_file_content(p_zipped_blob => l_kmz, p_dir_entry => l_entries(l_file_path));
+                            
+                            DBMS_LOB.CREATETEMPORARY(l_kml_clob, TRUE);
+                            l_dest_offset := 1; l_src_offset := 1;
+                            
+                            DBMS_LOB.CONVERTTOCLOB(
+                                dest_lob => l_kml_clob, src_blob => l_kml_blob, amount => DBMS_LOB.LOBMAXSIZE,
+                                dest_offset => l_dest_offset, src_offset => l_src_offset,
+                                blob_csid => DBMS_LOB.default_csid, lang_context => l_lang_ctx, warning => l_warning
+                            );
+                
+                            -- 3. EXTRACCIÓN GLOBAL Y CONVERSIÓN A  FeatureCollection (GeoJSON)
+                            BEGIN
+                                -- Extraemos todas las geometrías en un objeto contenedor FeatureCollection
+                                SELECT JSON_OBJECT(
+                           'type'     VALUE 'FeatureCollection',
+                           'features' VALUE JSON_ARRAYAGG(
+                                            JSON_OBJECT(
+                                                'type'     VALUE 'Feature',
+                                                'geometry' VALUE JSON_OBJECT(
+                                                                'type'        VALUE x.geom_type,
+                                                                'coordinates' VALUE treat (x.coord_json  as json)
+                                                             )
+                                            )
+                                        )
+                       )
+                INTO l_geojson_str
+                FROM (
+                    SELECT 
+                        geom_type,
+                        CASE geom_type
+                            -- Point: Convierte "X,Y" en [X, Y]
+                            WHEN 'Point' THEN 
+                                '[' || REGEXP_REPLACE(TRIM(coord_raw), ',[^, ]+( |$)', '\1') || ']'
+                            -- LineString: Convierte "X1,Y1 X2,Y2" en [[X1,Y1],[X2,Y2]]
+                            WHEN 'LineString' THEN 
+                                '[[' || REPLACE(REGEXP_REPLACE(coord_raw, ',[^, ]+( |$)', '\1'), ' ', '],[') || ']]'
+                        END AS coord_json
+                    FROM XMLTABLE(
+                        '//*[local-name()="Point" or local-name()="LineString"]'
+                        PASSING XMLTYPE(l_kml_clob)
+                        COLUMNS 
+                            geom_type VARCHAR2(30) PATH 'local-name(.)',
+                            coord_raw CLOB         PATH '*[local-name()="coordinates"]'
+                    )
+                ) x;
+                
+                                -- Aseguramos el reemplazo de espacios por comas para cumplir con la sintaxis exacta de JSON arrays
+                                 --l_geojson_str := REPLACE(l_geojson_str, '] [', '],[');
+                                --Mostrar el json
+                                 DBMS_OUTPUT.PUT_LINE('--- Ver Json ---');
+                                 DBMS_OUTPUT.PUT_LINE(l_geojson_str);
+                                 --Hacer la consulta del JSON table para seleccionar los Puntos
+                                 --Hacer la consulta del json table para seleccionar los Puntos
+                                -- 4. CONVERTIR EL JSON MULTI-GEOMETRÍA A SDO_GEOMETRY
+                               -- geom_result := SDO_UTIL.FROM_JSON(l_geojson_str);
+                
+                                /* 
+                                IF geom_result IS NOT NULL THEN
+                                    geom_result.SDO_SRID := 4326; -- Forzar WGS84
+                                    val_result := SDO_GEOM.VALIDATE_GEOMETRY_WITH_CONTEXT(geom_result, 0.005);
+                                    
+                                    DBMS_OUTPUT.PUT_LINE('--- Conversión Exitosa (Múltiples Geometrías) ---');
+                                    DBMS_OUTPUT.PUT_LINE('Archivo: ' || l_file_path);
+                                    DBMS_OUTPUT.PUT_LINE('Tipo SDO resultante: ' || geom_result.SDO_GTYPE);
+                                    DBMS_OUTPUT.PUT_LINE('Validación Espacial: ' || val_result);
+                                ELSE
+                                    DBMS_OUTPUT.PUT_LINE('Error: SDO_UTIL.FROM_JSON retornó NULL al procesar la colección.');
+                                END IF;
+                                */
+                
+                            EXCEPTION
+                                WHEN OTHERS THEN
+                                    DBMS_OUTPUT.PUT_LINE('Error procesando el formato: ' || SQLERRM);
+                                    DBMS_LOB.FREETEMPORARY(l_kml_clob);
+                            END;
+                
+                            DBMS_LOB.FREETEMPORARY(l_kml_clob);
+                        END IF;
+                        l_file_path := l_entries.next(l_file_path);
+                    END LOOP;
+                       APEX_JSON.OPEN_OBJECT;
+                       APEX_JSON.WRITE('data',l_geojson_str); -- Convierte el cursor a JSON array
+                       APEX_JSON.CLOSE_OBJECT;
+                    
+                     
+                END;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 10097366735987826
+        }
+    )
+
+    process save-bucle-trazado (
+        name: SAVE_BUCLE_TRAZADO
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                /*
+                Obtener un trazado y cargar los datos en la tabla de trazados.
+                El parametro 4326 es el SRID definido por defecto para esta app.
+                Por alguna razon oracle sdo_util setea por defecto el 4327, al comienzo me creo el indice por defecto en ese sistema
+                voy a averiguar cual es el sistema predefinido para utlizarlo como es predefinido por ORACLE.
+                */
+                declare
+                v_id integer := 0;
+                returned_json CLOB;
+                
+                --Declarar el cursor que se utilizara
+                Cursor c_geojson is (SELECT v_id AS ID, jt.type as type, JT.l_name, JT.l_desc,  sdo_util.from_GEOJSON(jt.geometry, NULL ,4326) AS geom
+                FROM 
+                     JSON_TABLE(
+                        :P4_GEOJSON, 
+                       '$.features[*]'
+                       COLUMNS (
+                         type path '$.geometry.type',
+                         geometry clob format json PATH '$.geometry',
+                         l_name path '$.properties.name',
+                         l_desc path '$.properties.description'
+                       )
+                     ) jt);
+                
+                json_error EXCEPTION;
+                DIM_ERROR EXCEPTION;
+                SRID_ERROR EXCEPTION;
+                PRAGMA EXCEPTION_INIT(json_error, -40441);
+                PRAGMA EXCEPTION_INIT(SRID_ERROR, -29875);
+                --PRAGMA EXCEPTION_INIT(, -40441);
+                
+                begin
+                
+                select pk_id into v_id from sgt_archivos where id = :P4_ARCHIVOS_KMZ;
+                
+                -- no encontro el enlace lanzar un error
+                IF (v_id = 0) then
+                   RAISE_APPLICATION_ERROR(-20001, 'No se encontró el enlace especificado.');
+                end if;   
+                
+                
+                --para evitar duplicados limpiar todos los datos relacionados a este v_id
+                -- No implementado aún
+                
+                --iterar los datos
+                
+                
+                
+                FOR REC IN c_geojson LOOP
+                
+                returned_json := SDO_UTIL.TO_GEOJSON(REC.geom);
+                --2026-10-21 Cambio para insertar en SGT_TRAZADOS_FO
+                INSERT INTO SGT_TRAZADOS_FO (FO_ID, TYPE ,L_NAME, L_DESC, SDO_DATA)
+                
+                VALUES (V_ID, REC.TYPE, REC.l_NAME, REC.L_DESC, REC.geom);
+                
+                
+                
+                END LOOP;
+                
+                
+                
+                --apex.debug
+                
+                apex_json.open_object; 
+                apex_json.write('success', true);
+                apex_json.write('RegistrosInsertados', SQL%ROWCOUNT);
+                apex_json.write('returned_json', returned_json);
+                apex_json.close_object;
+                
+                EXCEPTION
+                   when json_error THEN
+                        apex_json.open_object; 
+                        apex_json.write('geo_json', LENGTH(:P4_GEOJSON ));
+                        apex_json.write('sql_error', SQLERRM);
+                        apex_json.write('error', true);
+                        apex_json.close_object;  
+                   
+                    when SRID_ERROR THEN
+                        apex_json.open_object; 
+                        apex_json.write('error', 'Error de dimensionalidad o SRID:');
+                        apex_json.write('sql_error', SQLERRM);
+                        apex_json.write('returned_json', returned_json);
+                        apex_json.write('error', true);
+                        apex_json.close_object;         
+                   
+                end;
+                ```
+        }
+        execution {
+            sequence: 50
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 10419711690306121
+        }
+    )
+
+    process save-trazado (
+        name: SAVE_TRAZADO
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                /*
+                Obtener un trazado y cargar los datos en la tabla de trazados.
+                */
+                declare
+                v_id integer := 0;
+                
+                json_error EXCEPTION;
+                PRAGMA EXCEPTION_INIT(json_error, -40441);
+                --PRAGMA EXCEPTION_INIT(, -40441);
+                
+                begin
+                
+                select pk_id into v_id from sgt_archivos where id = :P4_ARCHIVOS_KMZ;
+                
+                -- no encontro el enlace lanzar un error
+                IF (v_id = 0) then
+                   RAISE_APPLICATION_ERROR(-20001, 'No se encontró el enlace especificado.');
+                end if;   
+                
+                
+                --para evitar duplicados limpiar todos los datos relacionados a este v_id
+                -- No implementado aún
+                
+                
+                INSERT INTO SGT_TRAZADOS_FO2 (FO_ID, TYPE ,L_NAME, L_DESC, SDO_DATA)
+                with data as (
+                    SELECT v_id AS ID, jt.type as type, JT.l_name, JT.l_desc,  SDO_UTIL.FROM_GEOJSON(JSON_SERIALIZE (jt.geometry )) AS geom
+                FROM 
+                     JSON_TABLE(
+                        :P4_GEOJSON, 
+                       '$.features[*]'
+                       COLUMNS (
+                         type path '$.geometry.type',
+                         geometry CLOB FORMAT JSON PATH '$.geometry',
+                         l_name path '$.properties.name',
+                         l_desc path '$.properties.description'
+                       )
+                     ) jt
+                )
+                SELECT id, type, l_name, l_desc, geom FROM data;
+                
+                --iterar los datos
+                
+                
+                
+                --apex.debug
+                
+                apex_json.open_object; 
+                apex_json.write('success', true);
+                apex_json.write('RegistrosInsertados', SQL%ROWCOUNT);
+                apex_json.close_object;
+                
+                EXCEPTION
+                   when json_error THEN
+                        apex_json.open_object; 
+                        apex_json.write('geo_json', LENGTH(:P4_GEOJSON ));
+                        apex_json.write('sql_error', SQLERRM);
+                        apex_json.write('error', true);
+                        apex_json.close_object;  
+                   
+                end;
+                ```
+        }
+        execution {
+            sequence: 40
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 10418399322306107
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+)
+

@@ -1,0 +1,606 @@
+page 10 (
+    name: EVENTOS_FORM
+    alias: EVENTOS-FORM
+    title: EVENTOS_FORM
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region eventos-form (
+        name: EVENTOS_FORM
+        type: form
+        source {
+            location: localDatabase
+            tableName: SGT_EVENTOS_FO
+        }
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+        }
+        edit {
+            enabled: true
+            allowedOperations: [
+                add
+                update
+                delete
+            ]
+        }
+    )
+
+    pageItem P10_COMENTARIOS (
+        type: richTextEditor
+        label {
+            label: Comentarios
+            alignment: left
+        }
+        settings {
+            minHeight: 180
+        }
+        layout {
+            sequence: 120
+            region: @eventos-form
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        source {
+            formRegion: @eventos-form
+            column: COMENTARIOS
+            dataType: clob
+        }
+    )
+
+    pageItem P10_CREADO_EL (
+        type: datePicker
+        label {
+            label: Creado El
+            alignment: left
+        }
+        layout {
+            sequence: 140
+            region: @eventos-form
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            maxLength: 255
+        }
+        source {
+            formRegion: @eventos-form
+            column: CREADO_EL
+            dataType: date
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P10_CREADO_POR (
+        type: textField
+        label {
+            label: Creado Por
+            alignment: left
+        }
+        layout {
+            sequence: 130
+            region: @eventos-form
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            maxLength: 255
+        }
+        source {
+            formRegion: @eventos-form
+            column: CREADO_POR
+            dataType: varchar2
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P10_CRITICIDAD (
+        type: radioGroup
+        label {
+            label: Criticidad
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:Baja;1,Media;2,Alta;3
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 90
+            region: @eventos-form
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        source {
+            formRegion: @eventos-form
+            column: CRITICIDAD
+            dataType: varchar2
+        }
+    )
+
+    pageItem P10_ESTADO (
+        type: radioGroup
+        label {
+            label: Estado
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @eventos-estados
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 80
+            region: @eventos-form
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        source {
+            formRegion: @eventos-form
+            column: ESTADO
+            dataType: varchar2
+        }
+    )
+
+    pageItem P10_FECHA_FIN (
+        type: datePicker
+        label {
+            label: Fecha Fin
+            alignment: left
+        }
+        layout {
+            sequence: 110
+            region: @eventos-form
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            maxLength: 255
+        }
+        source {
+            formRegion: @eventos-form
+            column: FECHA_FIN
+            dataType: date
+        }
+    )
+
+    pageItem P10_FECHA_INICIO (
+        type: datePicker
+        label {
+            label: Fecha Inicio
+            alignment: left
+        }
+        layout {
+            sequence: 100
+            region: @eventos-form
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            maxLength: 255
+        }
+        source {
+            formRegion: @eventos-form
+            column: FECHA_INICIO
+            dataType: date
+        }
+    )
+
+    pageItem P10_FO_ID (
+        type: popupLov
+        label {
+            label: Fo Id
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT NOMBRE, ID FROM
+                
+                SGT_ENLACES_FO
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 20
+            region: @eventos-form
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            maxLength: 255
+        }
+        source {
+            formRegion: @eventos-form
+            column: FO_ID
+            dataType: number
+        }
+    )
+
+    pageItem P10_ID (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @eventos-form
+            slot: regionBody
+        }
+        source {
+            formRegion: @eventos-form
+            column: ID
+            dataType: number
+            queryOnly: true
+            primaryKey: true
+        }
+        security {
+            sessionStateProtection: checksumRequiredSessionLevel
+        }
+    )
+
+    pageItem P10_LAT (
+        type: hidden
+        layout {
+            sequence: 50
+            region: @eventos-form
+            slot: regionBody
+        }
+        source {
+            formRegion: @eventos-form
+            column: LAT
+            dataType: number
+        }
+    )
+
+    pageItem P10_LON (
+        type: hidden
+        layout {
+            sequence: 40
+            region: @eventos-form
+            slot: regionBody
+        }
+        source {
+            formRegion: @eventos-form
+            column: LON
+            dataType: number
+        }
+    )
+
+    pageItem P10_MODIFICADO_EL (
+        type: datePicker
+        label {
+            label: Modificado El
+            alignment: left
+        }
+        layout {
+            sequence: 160
+            region: @eventos-form
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            maxLength: 255
+        }
+        source {
+            formRegion: @eventos-form
+            column: MODIFICADO_EL
+            dataType: date
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P10_MODIFICADO_POR (
+        type: textField
+        label {
+            label: Modificado Por
+            alignment: left
+        }
+        layout {
+            sequence: 150
+            region: @eventos-form
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            maxLength: 255
+        }
+        source {
+            formRegion: @eventos-form
+            column: MODIFICADO_POR
+            dataType: varchar2
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P10_TIPO_EVENTO (
+        type: popupLov
+        label {
+            label: Causa del Evento
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @eventos-tipo
+            nullDisplayValue: Seleccione Una
+        }
+        layout {
+            sequence: 60
+            region: @eventos-form
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required-floating
+            templateOptions: #DEFAULT#
+            width: 32
+        }
+        validation {
+            valueRequired: true
+            maxLength: 50
+        }
+        source {
+            formRegion: @eventos-form
+            column: TIPO_EVENTO
+            dataType: varchar2
+        }
+    )
+
+    pageItem P10_TIPO_FALLA (
+        type: radioGroup
+        label {
+            label: Tipo Falla
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:Corte Total;Corte Total,Corte Parcial;Corte Parcial,NA;NA
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 70
+            region: @eventos-form
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        source {
+            formRegion: @eventos-form
+            column: TIPO_FALLA
+            dataType: varchar2
+        }
+    )
+
+    button cancel (
+        buttonName: CANCEL
+        label: Cancel
+        layout {
+            sequence: 10
+            region: @eventos-form
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 3
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button create (
+        buttonName: CREATE
+        label: Create
+        layout {
+            sequence: 40
+            region: @eventos-form
+            slot: create
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: insert
+        }
+        serverSideCondition {
+            type: itemIsNull
+            item: P10_ID
+        }
+    )
+
+    button delete (
+        buttonName: DELETE
+        label: Delete
+        layout {
+            sequence: 20
+            region: @eventos-form
+            slot: delete
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            executeValidations: false
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: delete
+            requiresConfirmation: true
+        }
+        confirmation {
+            message: &APP_TEXT$DELETE_MSG!RAW.
+            style: danger
+        }
+        serverSideCondition {
+            type: itemIsNotNull
+            item: P10_ID
+        }
+    )
+
+    button save (
+        buttonName: SAVE
+        label: Apply Changes
+        layout {
+            sequence: 30
+            region: @eventos-form
+            slot: change
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: update
+        }
+        serverSideCondition {
+            type: itemIsNotNull
+            item: P10_ID
+        }
+    )
+
+    computation p10-fo-id (
+        itemName: P10_FO_ID
+        execution {
+            sequence: 10
+        }
+        computation {
+            sqlQuery:
+                ```sql
+                select nvl(fo_id, 0) from
+                sgt_trazados_fo2 tf
+                where sdo_nn( TF.SDO_DATA , mdsys.sdo_util.from_geojson (:P3_CLICK_POSICION ), 'distance=550 unit=m',   1 ) = 'TRUE'
+                
+                --select fo_id from sgt_trazados_fo2 tf where tf.id = :P3_TF_ID
+                ```
+        }
+        error {
+            errorMessage: No se encontró trazados cercanos
+        }
+        serverSideCondition {
+            type: itemIsNull
+            item: P10_FO_ID
+        }
+    )
+
+    process initialize-form-eventos-form (
+        name: Initialize form EVENTOS_FORM
+        type: formInitialization
+        formRegion: @eventos-form
+        execution {
+            sequence: 10
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 11116961217511777
+        }
+    )
+
+    process process-form-eventos-form (
+        name: Process form EVENTOS_FORM
+        type: formAutoRowProcessing
+        formRegion: @eventos-form
+        execution {
+            sequence: 10
+        }
+        advanced {
+            executionMappingIdentifier: 11117345146511777
+        }
+    )
+
+    branch (
+        execution {
+            sequence: 1
+        }
+        behavior {
+            target: {
+                page: 3
+            }
+        }
+    )
+
+)
+

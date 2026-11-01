@@ -1,0 +1,330 @@
+list menu-ceo (
+    name: MENU_CEO
+
+    entry agregar (
+        label: Agregar Elemento
+        icon {
+            imageIconCssClasses: fa-plus-circle-o
+        }
+        layout {
+            sequence: 10
+        }
+        link {
+            target: {
+                page: 8
+                items: {
+                    P8_LON: &P3_LONG.
+                    P8_LAT: &P3_LAT.
+                    P8_FO_ID: &P3_FO_ID.
+                }
+            }
+        }
+    )
+
+    entry borrar (
+        label: Agregar Foto
+        layout {
+            sequence: 25
+        }
+        link {
+            target: {
+                page: 1
+            }
+        }
+    )
+
+    entry comentarios (
+        label: Comentarios
+        icon {
+            imageIconCssClasses: fa-apex
+        }
+        layout {
+            sequence: 50
+        }
+        link {
+            target: {
+                page: 1
+            }
+        }
+    )
+
+    entry como-llegar (
+        label: Como llegar?
+        layout {
+            sequence: 30
+        }
+        link {
+            target: {
+                page: 1
+            }
+        }
+    )
+
+    entry editar (
+        label: Agregar Evento
+        icon {
+            imageIconCssClasses: fa-arrows-alt
+        }
+        layout {
+            sequence: 20
+        }
+        link {
+            target: {
+                page: 10
+                items: {
+                    P10_LON: &P3_LONG.
+                    P10_LAT: &P3_LAT.
+                    P10_FO_ID: &P3_FO_ID.
+                }
+            }
+        }
+    )
+
+)
+
+list menu-trazados (
+    name: Menu trazados
+
+    entry agregar-punto (
+        label: Agregar Evento
+        layout {
+            sequence: 10
+        }
+        link {
+            target: {
+                page: 10
+                items: {
+                    P10_LON: &P3_LONG.
+                    P10_LAT: &P10_LAT.
+                    P10_FO_ID: 145
+                }
+            }
+        }
+    )
+
+    entry comentarios (
+        label: Comentarios
+        layout {
+            sequence: 30
+        }
+        link {
+            target: {
+                page: 1
+            }
+        }
+    )
+
+    entry como-llegar (
+        label: Como llegar
+        layout {
+            sequence: 20
+        }
+        link {
+            target: {
+                page: 1
+            }
+        }
+    )
+
+    entry modificar-kmz (
+        label: Modificar KMZ
+        layout {
+            sequence: 40
+        }
+        link {
+            target: {
+                page: 1
+            }
+        }
+    )
+
+)
+
+list navigation-bar (
+    name: Navigation Bar
+
+    entry app-user (
+        label: &APP_USER.
+        icon {
+            imageIconCssClasses: fa-user
+        }
+        layout {
+            sequence: 10
+        }
+        link {
+            target: {
+                type: url
+                url: #
+            }
+        }
+        userDefinedAttributes {
+            2: has-username
+        }
+    )
+
+    entry list_item (
+        label: ---
+        layout {
+            sequence: 20
+            parentEntry: @app-user
+        }
+        link {
+            target: {
+                type: url
+                url: separator
+            }
+        }
+        serverSideCondition {
+            type: userIsAuthenticated
+        }
+    )
+
+    entry sign-out (
+        label: Sign Out
+        icon {
+            imageIconCssClasses: fa-sign-out
+        }
+        layout {
+            sequence: 30
+            parentEntry: @app-user
+        }
+        link {
+            target: {
+                type: url
+                url: &LOGOUT_URL.
+            }
+        }
+        serverSideCondition {
+            type: userIsAuthenticated
+        }
+    )
+
+)
+
+list navigation-menu (
+    name: Navigation Menu
+
+    entry buscar-fo (
+        label: Buscar FO
+        icon {
+            imageIconCssClasses: fa-map-marker
+        }
+        layout {
+            sequence: 30
+        }
+        isCurrent {
+            type: pages
+            pages: 3
+        }
+        link {
+            target: {
+                page: 3
+            }
+        }
+    )
+
+    entry eventos-fo (
+        label: Eventos FO
+        icon {
+            imageIconCssClasses: fa-dashboard
+        }
+        layout {
+            sequence: 60
+        }
+        isCurrent {
+            type: pages
+            pages: 11
+        }
+        link {
+            target: {
+                page: 11
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: 1=0
+        }
+    )
+
+    entry home (
+        label: Home
+        icon {
+            imageIconCssClasses: fa-home
+        }
+        layout {
+            sequence: 10
+        }
+        link {
+            target: {
+                page: 1
+            }
+        }
+    )
+
+    entry mapa-interactivo (
+        label: mapa-interactivo
+        icon {
+            imageIconCssClasses: fa-map-marker
+        }
+        layout {
+            sequence: 20
+        }
+        isCurrent {
+            type: pages
+            pages: 2
+        }
+        link {
+            target: {
+                page: 2
+            }
+        }
+        serverSideCondition {
+            type: request=Value
+            value: 1=0
+        }
+    )
+
+    entry ver-trazados (
+        label: Ver trazados
+        icon {
+            imageIconCssClasses: fa-map-marker
+        }
+        layout {
+            sequence: 40
+        }
+        isCurrent {
+            type: pages
+            pages: 4
+        }
+        link {
+            target: {
+                page: 4
+            }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: 1=0
+        }
+    )
+
+    entry visor-de-trazados (
+        label: VISOR DE TRAZADOS
+        icon {
+            imageIconCssClasses: fa-map-marker
+        }
+        layout {
+            sequence: 50
+        }
+        isCurrent {
+            type: pages
+            pages: 7
+        }
+        link {
+            target: {
+                page: 7
+            }
+        }
+    )
+
+)
+

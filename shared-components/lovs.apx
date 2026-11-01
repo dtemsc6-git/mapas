@@ -1,0 +1,247 @@
+lov ceo-tipo-elemento (
+    name: CEO_TIPO_ELEMENTO
+    source {
+        location: staticValues
+    }
+
+    entry 1 (
+        sequence: 1
+        display: CEO
+        return: 1
+    )
+
+    entry 2 (
+        sequence: 2
+        display: Derivación
+        return: 2
+    )
+
+    entry 3 (
+        sequence: 3
+        display: Reserva
+        return: 3
+    )
+
+    entry 4 (
+        sequence: 4
+        display: DIO externo
+        return: 4
+    )
+
+)
+
+lov ceo-ubicación (
+    name: CEO_UBICACIÓN
+    source {
+        location: staticValues
+    }
+
+    entry 1 (
+        sequence: 1
+        display: Columna
+        return: Columna
+    )
+
+    entry 2 (
+        sequence: 2
+        display: Volante
+        return: Volante
+    )
+
+    entry 3 (
+        sequence: 3
+        display: Subterránea
+        return: Subterránea
+    )
+
+)
+
+lov eventos-estados (
+    name: EVENTOS_ESTADOS
+    source {
+        location: staticValues
+    }
+
+    entry 1 (
+        sequence: 1
+        display: Pendiente
+        return: 1
+    )
+
+    entry 2 (
+        sequence: 2
+        display: En proceso
+        return: 2
+    )
+
+    entry 3 (
+        sequence: 3
+        display: Reparado
+        return: 3
+    )
+
+    entry 4 (
+        sequence: 4
+        display: Irreparable
+        return: 4
+    )
+
+)
+
+lov eventos-tipo (
+    name: EVENTOS_TIPO
+    source {
+        location: staticValues
+    }
+
+    entry 1 (
+        sequence: 1
+        display: Accidente de tránsito
+        return: 1
+    )
+
+    entry 10 (
+        sequence: 10
+        display: Poda ANDE
+        return: 10
+    )
+
+    entry 11 (
+        sequence: 11
+        display: Poda Terceros
+        return: 11
+    )
+
+    entry 12 (
+        sequence: 12
+        display: Aves/Insectos/Alimañas
+        return: 12
+    )
+
+    entry 13 (
+        sequence: 13
+        display: Quemazón
+        return: 13
+    )
+
+    entry 14 (
+        sequence: 14
+        display: FO Roza contra columna
+        return: 14
+    )
+
+    entry 2 (
+        sequence: 2
+        display: Actos de vandalismo  / Hurto
+        return: 2
+    )
+
+    entry 3 (
+        sequence: 3
+        display: CEO Suelta
+        return: 3
+    )
+
+    entry 4 (
+        sequence: 4
+        display: Dio externo Suelto
+        return: 4
+    )
+
+    entry 5 (
+        sequence: 5
+        display: Dieléctrico Suelto
+        return: 5
+    )
+
+    entry 6 (
+        sequence: 6
+        display: Reserva Suelta
+        return: 6
+    )
+
+    entry 7 (
+        sequence: 7
+        display: Fibra en el suelo
+        return: 7
+    )
+
+    entry 8 (
+        sequence: 8
+        display: Cambio de conductor eléctrico
+        return: 8
+    )
+
+    entry 9 (
+        sequence: 9
+        display: Cambio de Postación
+        return: 9
+    )
+
+)
+
+lov fo-afectacion-servicio (
+    name: FO_AFECTACION_SERVICIO
+    source {
+        type: sqlQuery
+        sqlQuery:
+            ```sql
+            SELECT FO.ID RETURN_VALUE, SRV.SERVICIOS AS DISPLAY_VALUE 
+            FROM SGT_ENLACES_FO FO
+            JOIN (
+                SELECT es.fo_id,
+                       LISTAGG(DISTINCT s.nombre, ', ')
+                         WITHIN GROUP (ORDER BY s.nombre) servicios
+                FROM sgt_equipos_servicio es
+                JOIN sgt_servicios s
+                  ON s.id = es.servicio_id
+                GROUP BY es.fo_id
+            ) srv ON srv.fo_id = FO.id
+            ```
+    }
+    columnMapping {
+        return: RETURN_VALUE
+        display: DISPLAY_VALUE
+        defaultSort: DISPLAY_VALUE
+    }
+)
+
+lov fo-afectacion-wan (
+    name: FO_AFECTACION_WAN
+    source {
+        type: sqlQuery
+        sqlQuery:
+            ```sql
+            SELECT FO.ID RETURN_VALUE, WAN.enlaces_wan DISPLAY_VALUE
+            FROM SGT_ENLACES_FO FO
+            
+            JOIN (
+                SELECT ew.fo_id,
+                       LISTAGG(DISTINCT w.nombre, ', ')
+                         WITHIN GROUP (ORDER BY w.nombre) enlaces_wan
+                FROM sgt_equipos_wan ew
+                JOIN sgt_enlaces_wan w
+                  ON w.id = ew.wan_id
+                GROUP BY ew.fo_id
+            ) wan ON wan.fo_id = FO.id
+            ```
+    }
+    columnMapping {
+        return: RETURN_VALUE
+        display: DISPLAY_VALUE
+        defaultSort: DISPLAY_VALUE
+    }
+)
+
+lov fo-nombres (
+    name: FO_NOMBRES
+    source {
+        tableName: SGT_ENLACES_FO
+    }
+    columnMapping {
+        return: ID
+        display: NOMBRE
+        defaultSort: NOMBRE
+    }
+)
+

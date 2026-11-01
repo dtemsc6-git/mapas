@@ -1,0 +1,249 @@
+page 11 (
+    name: Eventos FO
+    alias: EVENTOS-FO
+    title: Eventos FO
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region breadcrumb (
+        name: Breadcrumb
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: [
+                #DEFAULT#
+                t-BreadcrumbRegion--useBreadcrumbTitle
+            ]
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region chart-1 (
+        name: Chart 1
+        type: chart
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+        }
+        chart {
+            type: area
+        }
+        chartLayout {
+            height: 400
+        }
+        legend {
+            show: false
+        }
+
+        series series-1 (
+            name: Series 1
+            execution {
+                sequence: 10
+            }
+            source {
+                tableName: SGT_EVENTOS_FO
+            }
+            columnMapping {
+                label: TIPO_EVENTO
+                valueAggregation: count
+            }
+        )
+
+        axis x (
+            name: x
+        )
+
+        axis y (
+            name: y
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+        )
+
+    )
+
+    region chart-2 (
+        name: Chart 2
+        type: chart
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+        }
+        chart {
+            type: pie
+        }
+        chartLayout {
+            height: 400
+        }
+        value {
+            format: decimal
+            decimalPlaces: 0
+            formatScaling: none
+        }
+
+        series series-1 (
+            name: Series 1
+            execution {
+                sequence: 10
+            }
+            source {
+                tableName: SGT_EVENTOS_FO
+            }
+            columnMapping {
+                seriesName: TIPO_EVENTO
+                label: TIPO_EVENTO
+                valueAggregation: count
+            }
+            label {
+                show: true
+            }
+        )
+
+    )
+
+    region chart-3 (
+        name: Chart 3
+        type: chart
+        layout {
+            sequence: 30
+            slot: body
+            startNewRow: false
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+        }
+        chartLayout {
+            height: 400
+        }
+        legend {
+            show: false
+        }
+
+        series series-1 (
+            name: Series 1
+            execution {
+                sequence: 10
+            }
+            source {
+                location: sampleData
+                sampleData: employees
+            }
+            columnMapping {
+                label: TIME_ZONE
+                valueAggregation: sum
+                value: SALARY
+            }
+        )
+
+        axis x (
+            name: x
+        )
+
+        axis y (
+            name: y
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+        )
+
+    )
+
+    region chart-4 (
+        name: Chart 4
+        type: chart
+        layout {
+            sequence: 40
+            slot: body
+            startNewRow: false
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+        }
+        chart {
+            type: line
+        }
+        chartLayout {
+            height: 400
+        }
+        legend {
+            show: false
+        }
+
+        series series-1 (
+            name: Series 1
+            execution {
+                sequence: 10
+            }
+            source {
+                location: sampleData
+                sampleData: employees
+            }
+            columnMapping {
+                label: CATEGORY
+                valueAggregation: sum
+                value: SALES_VOLUME
+            }
+        )
+
+        axis x (
+            name: x
+        )
+
+        axis y (
+            name: y
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+        )
+
+    )
+
+)
+

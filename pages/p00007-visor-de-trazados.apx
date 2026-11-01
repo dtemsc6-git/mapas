@@ -1,0 +1,590 @@
+page 7 (
+    name: VISOR DE TRAZADOS
+    alias: VISOR-DE-TRAZADOS
+    title: VISOR DE TRAZADOS
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function showFeature( pId ) {
+               $s( "P7_ID", pId );
+                apex.event.trigger( $("#eventos-map-region"), "refresh_and_center" );
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region breadcrumb (
+        name: Breadcrumb
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: [
+                #DEFAULT#
+                t-BreadcrumbRegion--useBreadcrumbTitle
+            ]
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region eventos (
+        name: Eventos
+        type: interactiveReport
+        source {
+            location: localDatabase
+            tableName: SGT_EVENTOS_FO
+        }
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: [
+                #DEFAULT#
+                t-IRR-region--hideHeader js-addHiddenHeadingRoleDesc
+            ]
+        }
+        link {
+            linkColumn: customTarget
+            target: {
+                type: url
+                url: javascript:showFeature('#ID#')
+            }
+            linkIcon: <span class="t-Icon fa fa-lg fa-map-marker-s u-danger-text" aria-hidden="true"></span>
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        advanced {
+            savedReportMappingIdentifier: 22383779460506436
+        }
+
+        column CREADO_EL (
+            type: plainText
+            heading {
+                heading: Creado El
+            }
+            layout {
+                sequence: 120
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: L
+            }
+            config {
+                buildOption: @commented-out
+            }
+        )
+
+        column CREADO_POR (
+            type: plainText
+            heading {
+                heading: Creado Por
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+            config {
+                buildOption: @commented-out
+            }
+        )
+
+        column CRITICIDAD (
+            type: plainText
+            heading {
+                heading: Criticidad
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column ESTADO (
+            type: plainText
+            heading {
+                heading: Estado
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column FECHA_FIN (
+            type: plainText
+            heading {
+                heading: Fecha Fin
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column FECHA_INICIO (
+            type: plainText
+            heading {
+                heading: Fecha Inicio
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column FO_ID (
+            type: plainText
+            heading {
+                heading: Fo Id
+                alignment: end
+            }
+            layout {
+                sequence: 20
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column ID (
+            type: hidden
+            heading {
+                heading: Id
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                primaryKey: true
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column LAT (
+            type: hidden
+            heading {
+                heading: Lat
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column LON (
+            type: hidden
+            heading {
+                heading: Lon
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column MODIFICADO_EL (
+            type: plainText
+            heading {
+                heading: Modificado El
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: N
+            }
+            config {
+                buildOption: @commented-out
+            }
+        )
+
+        column MODIFICADO_POR (
+            type: plainText
+            heading {
+                heading: Modificado Por
+            }
+            layout {
+                sequence: 130
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+            config {
+                buildOption: @commented-out
+            }
+        )
+
+        column TIPO_EVENTO (
+            type: plainText
+            heading {
+                heading: Tipo Evento
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column TIPO_FALLA (
+            type: plainText
+            heading {
+                heading: Tipo Falla
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn CREADO_EL (
+                sequence: 12
+            )
+
+            displayColumn CREADO_POR (
+                sequence: 11
+            )
+
+            displayColumn CRITICIDAD (
+                sequence: 6
+            )
+
+            displayColumn ESTADO (
+                sequence: 5
+            )
+
+            displayColumn FECHA_FIN (
+                sequence: 10
+            )
+
+            displayColumn FECHA_INICIO (
+                sequence: 9
+            )
+
+            displayColumn FO_ID (
+                sequence: 2
+            )
+
+            displayColumn ID (
+                sequence: 1
+            )
+
+            displayColumn LAT (
+                sequence: 8
+            )
+
+            displayColumn LON (
+                sequence: 7
+            )
+
+            displayColumn MODIFICADO_EL (
+                sequence: 14
+            )
+
+            displayColumn MODIFICADO_POR (
+                sequence: 13
+            )
+
+            displayColumn TIPO_EVENTO (
+                sequence: 3
+            )
+
+            displayColumn TIPO_FALLA (
+                sequence: 4
+            )
+
+        )
+
+    )
+
+    region visor-de-trazados (
+        name: EVENTOS_MAP_REGION
+        title: Eventos
+        type: map
+        source {
+            location: localDatabase
+            tableName: SGT_TRAZADOS_FO2
+        }
+        layout {
+            sequence: 20
+            slot: body
+            startNewRow: false
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: eventos-map-region
+        }
+        map {
+            height: 600
+        }
+        controls {
+            options: rectangleZoom
+        }
+        attributes {
+            messagesPosition: below
+        }
+
+        layer ceo (
+            name: ceo
+            layout {
+                sequence: 20
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                geometryColumn: SDO_DATA
+                primaryKeyColumn: ID
+            }
+            tooltip {
+                column: L_NAME
+            }
+            infoWindow {
+                titleColumn: L_NAME
+                bodyColumn: L_DESC
+            }
+            config {
+                buildOption: @commented-out
+            }
+        )
+
+        layer eventos (
+            name: EVENTOS
+            layout {
+                sequence: 30
+            }
+            source {
+                tableName: SGT_EVENTOS_FO
+                whereClause: ID = :P7_ID
+                pageItemsToSubmit: P7_ID
+            }
+            columnMapping {
+                geometryColumnDataType: longitudeLatitude
+                longitudeColumn: LON
+                latitudeColumn: LAT
+                primaryKeyColumn: ID
+            }
+            infoWindow {
+                advancedFormatting: true
+                htmlExpression:
+                    ```html
+                    <h3>Hola probando el info windows</h3>
+                    <h3>Hola probando el info windows1</h3>
+                    <h3>Hola probando el info windows2</h3>
+                    <h3>Hola probando el info windows3</h3>
+                    <h3>Hola probando el info windows4</h3>
+                    ```
+            }
+        )
+
+        layer visor-de-trazados (
+            name: VISOR DE TRAZADOS
+            layerType: lines
+            layout {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                geometryColumn: SDO_DATA
+                primaryKeyColumn: ID
+            }
+            appearance {
+                strokeColor: #07b507
+            }
+            infoWindow {
+                titleColumn: L_NAME
+                bodyColumn: L_DESC
+            }
+        )
+
+    )
+
+    pageItem P7_ID (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 10
+            region: @visor-de-trazados
+            slot: regionBody
+        }
+    )
+
+    dynamicAction center-show (
+        name: ShowFeature
+        execution {
+            sequence: 10
+        }
+        when {
+            event: apexafterrefresh
+            selectionType: region
+            region: @visor-de-trazados
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    var lMapRegion   = apex.region("eventos-map-region"),
+                        // important: Use the layer name exactly as specified in the "name" attribute in Page Designer
+                        lLayerId     = lMapRegion.call("getLayerIdByName", "EVENTOS"),
+                        lCurrentZoom = lMapRegion.call("getMapCenterAndZoomLevel").zoom,
+                        leventoId    = apex.item("P7_ID").getValue(),
+                        lFeature     = lMapRegion.call("getFeature", lLayerId, leventoId ),
+                        lPosition;
+                    
+                       
+                    
+                    if ( lFeature.geometry ) {
+                        lPosition    = lFeature.geometry.coordinates;
+                            
+                        // close all Info Windows, which might currently be open
+                        lMapRegion.call( "closeAllInfoWindows" );
+                    
+                        // focus the map to the chosen feature
+                        lMapRegion.call( "setCenter", lPosition );
+                    
+                        // if the current zoom level is below 8, zoom in. Otherwise do nothing.
+                        if ( lCurrentZoom < 12 ) {
+                            lMapRegion.call( "setZoomLevel", 12 );
+                        }
+                        setTimeout( function() {lMapRegion.call( "displayPopup", "infoWindow", lLayerId, leventoId.toString(), false )}, 500 );
+                    }
+                    ```
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction refresh-center (
+        name: refresh_center
+        execution {
+            sequence: 20
+        }
+        when {
+            event: custom
+            customEvent: refresh_and_center
+            selectionType: jQuerySelector
+            jquerySelector: #eventos-map-region
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @visor-de-trazados
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+)
+

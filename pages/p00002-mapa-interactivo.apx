@@ -1,0 +1,435 @@
+page 2 (
+    name: mapa-interactivo
+    alias: MAPA-INTERACTIVO
+    title: mapa-interactivo
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    javaScript {
+        fileUrls: [
+            https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js
+            --Dibujar en el mapa
+            https://unpkg.com/terra-draw@1.0.0/dist/terra-draw.umd.js
+            --Adaptador
+            https://unpkg.com/terra-draw-maplibre-gl-adapter@1.0.0/dist/terra-draw-maplibre-gl-adapter.umd.js
+            --Controles
+            https://unpkg.com/@watergis/maplibre-gl-terradraw/dist/maplibre-gl-terradraw.umd.js
+            --https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.4.3/mapbox-gl-draw.js
+        ]
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            const map = new maplibregl.Map({
+              container: 'map-gl',
+              // style: 'https://demotiles.maplibre.org/style.json', // Cambia por tu estilo Vector Tile
+              style: 'https://tiles.openfreemap.org/styles/bright', // Cambia por tu estilo Vector Tile
+              center: [-57.3332, -25.3332], // [Longitud, Latitud]
+              zoom: 0
+            });
+            
+            ```
+        executeWhenPageLoads:
+            ```javascript-browser
+            //const terraDraw = terraDraw.TerraDraw
+            // 2026-10-24 Comentado.
+            //const terraAdapter = terraDrawMaplibreGlAdapter.TerraDrawMapLibreGLAdapter
+            
+            
+            //Agregar los controles
+            //estos pasos voy a borrar...
+            map.addControl(new maplibregl.NavigationControl(), 'top-right');
+            
+            // Añadir control de geolocalización
+            map.addControl(new maplibregl.GeolocateControl({
+                positionOptions: { enableHighAccuracy: true },
+                trackUserLocation: true
+            }), 'top-right');
+            
+            map.addControl(new maplibregl.ScaleControl({
+                maxWidth: 100,
+                unit: 'metric'
+            }), 'bottom-right')
+            // Crear el control de dibujo
+            //borrar hasta aqui.
+            //--- este se debe agregar al mapa de apex.---
+            const drawControl = new MaplibreTerradrawControl.MaplibreTerradrawControl({
+                // Aquí puedes configurar qué herramientas mostrar y su estilo
+                //modes: ['render', 'marker', 'linestring', 'select', 'delete', 'download'],
+                //open: true, // Para que el panel aparezca abierto por defecto
+                modes: ['render', 'marker', 'linestring', 'select', 'delete'],
+                open: true
+            
+            });
+            //--- hasta aqui.
+            
+            // Añadir el control al mapa
+            
+            map.addControl(drawControl, 'top-left');
+            
+            // ..::2026-10-24 Comentado hasta aquí::.. / 
+            
+            
+            
+            /*Agregado para poner el control de puntos. 
+            Borrar esta parte.
+            */
+            
+            // 1. Inicializar mapa (se asume que ya tienes la instancia map)
+            // const map = new mapgl.Map('container', { ... });
+            
+            // 2. Almacenar todos los puntos de la polilínea
+            let linePoints = [];
+            let polyline = null;
+            
+            // 3. Crear control personalizado (botón +)
+            const btnHtml = 'div'
+            
+            class btnControl {
+                onAdd(map) {
+                    this._map = map;
+                    this._container = document.createElement(btnHtml);
+                    this._container.className = 'maplibregl-ctrl';
+                    this._container.id = 'add-point-btn';
+                    this._container.textContent = 'Puntos';
+                    return this._container;
+                }
+                onRemove() {
+                    this._container.remove();
+                    this._map = null;
+                }
+            }
+            
+            
+            // Agregar control a la esquina inferior derecha
+            const customControl = map.addControl(new btnControl(), 'bottom-right');
+            
+            // 4. Vincular evento de clic al botón
+            // Nota: Es necesario obtener el elemento DOM real a través de getContainer
+            const btnElement = customControl.getContainer().querySelector('#add-point-btn');
+            
+            btnElement.addEventListener('click', () => {
+            
+                // Crear las coordenadas.
+                const sourceId = "mi-linea-source";
+                const layerId = "mi-linea-layer";
+                const sourcePuntosId = "mis-puntos-source";
+                const layerPuntosId = "mis-puntos-layer";
+                // Definir la fuente GeoJSON
+            
+            
+                // Obtener coordenadas del centro de la pantalla
+                const center = map.getCenter();
+            
+                // Agregar al arreglo de puntos
+                linePoints.push([center.lng, center.lat]);
+            
+                const geojson = {
+                    type: "Feature",
+                    geometry: {
+                        type: "LineString",
+                        coordinates: linePoints
+                    },
+                    properties: {}
+                };
+            
+                const geojsonPuntos = {
+                    type: "Feature",
+                    geometry: {
+                        type: "Point",
+                        coordinates: linePoints
+                    },
+                    properties: {}
+                };
+            
+            
+                if (map.getSource(sourceId)) {
+                    map.getSource(sourceId).setData(geojson);
+                } else {
+                    // Si no existe, crearla
+                    map.addSource(sourceId, {
+                        type: "geojson",
+                        data: geojson
+                    });
+            
+                    map.addLayer({
+                        id: layerId,
+                        type: "line",
+                        source: sourceId,
+                        layout: {
+                            "line-join": "round",
+                            "line-cap": "round"
+                        },
+                        paint: {
+                            "line-color": "#41e8e2c1",
+                            "line-width": 2
+                        }
+                    });
+                }
+                //Agregar capa puntos
+                if (map.getSource(sourcePuntosId)) {
+                    map.getSource(sourcePuntosId).setData(geojsonPuntos);
+                } else {
+                    // Si no existe, crearla
+                    map.addSource(sourcePuntosId, {
+                        type: "geojson",
+                        data: geojsonPuntos
+                    });
+            
+                    map.addLayer({
+                        id: layerPuntosId,
+                        type: "Point",
+                        source: sourcePuntosId,
+                        layout: {
+                            "line-join": "round",
+                            "line-cap": "round"
+                        },
+                        paint: {
+                            "line-color": "#a5d4ebff",
+                            "line-width": 2
+                        }
+                    });
+                }
+            
+            });
+            //-- borrar hasta aqui, crear todo en una nueva pagina, y que estire los datos desde 
+            
+            
+            map.on('load', () => {
+                console.log("Map Cargado:")
+            
+            
+                const draw = drawControl.getTerraDrawInstance();
+            
+                draw.on("finish", function (id, context) {
+            
+                    // Obtener todos los features (cada uno es un objeto Feature estándar de GeoJSON)
+            
+                    console.log("Draw context", context);
+                    const modeState = draw.getModeState();
+                    const features = draw.getSnapshot();
+            
+                    // Ensamblar como FeatureCollection
+                    const geojson = {
+                        type: 'FeatureCollection',
+                        features: features
+                    };
+            
+                    console.log("GeoJSON completo:", JSON.stringify(geojson));
+                    console.log("DrawState:", modeState);
+                    $s('P2_GEOJSON', JSON.stringify(geojson))
+            
+                    if (context.mode === 'marker') {
+                        apex.theme.openRegion("dialog-marker");
+                        //Cargar los datos del elemento seleccionado, los marcadores no de deberian de guardar aún en la db?
+                    }
+                    else {
+                        apex.theme.openRegion("dialog-guardar");
+                    }
+            
+                })
+                console.log("Draw", draw);
+            
+                if (draw) {
+                    //Hay un control, se le agrega los datos.
+                    console.log("Control:", draw);
+                    draw.updateModeOptions({
+                        linestring: {
+                            snapping: {
+                                pixelTolerance: 20,
+                                modes: ['point', 'linestring']
+                            },
+                            styles: {
+                                snappingPointColor: '#00FF00',
+                                snappingPointWidth: 6
+                            }
+                        }
+                    });
+            
+            
+                }
+            });
+            
+            
+            
+            ```
+    }
+    css {
+        fileUrls: [
+            https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css
+            --Controles
+            https://unpkg.com/@watergis/maplibre-gl-terradraw/dist/maplibre-gl-terradraw.css
+        ]
+        inline:
+            ```css
+            #map-gl {
+                min-height: 600px;
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region dialog-maker-elment (
+        name: DIALOG_MAKER_ELMENT
+        type: staticContent
+        layout {
+            sequence: 40
+            slot: dialogsDrawersAndPopups
+        }
+        appearance {
+            template: @/inline-dialog
+            templateOptions: [
+                #DEFAULT#
+                js-dialog-size600x400
+            ]
+        }
+        advanced {
+            htmlDomId: dialog-marker
+        }
+    )
+
+    region dialog-map-element (
+        name: DIALOG_MAP_ELEMENT
+        type: staticContent
+        layout {
+            sequence: 30
+            slot: dialogsDrawersAndPopups
+        }
+        appearance {
+            template: @/inline-dialog
+            templateOptions: [
+                #DEFAULT#
+                js-dialog-size600x400
+            ]
+        }
+        advanced {
+            htmlDomId: dialog-guardar
+        }
+    )
+
+    region mapa (
+        name: Mapa
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            htmlDomId: map-gl
+        }
+    )
+
+    pageItem P2_COLOR (
+        type: colorPicker
+        label {
+            label: New
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @dialog-map-element
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P2_GEOJSON (
+        type: textField
+        label {
+            label: Geojson
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @dialog-map-element
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P2_TRAZADO_ID (
+        type: textField
+        label {
+            label: Trazado Id
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @dialog-map-element
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button agregar-elemento (
+        buttonName: AGREGAR_ELEMENTO
+        label: Agregar Elemento
+        layout {
+            sequence: 20
+            region: @dialog-maker-elment
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: [
+                #DEFAULT#
+                t-Button--link
+            ]
+        }
+        behavior {
+            action: redirectUrl
+            targetUrl: javascript:agregar_elemento()
+        }
+    )
+
+    button agregar-sitio (
+        buttonName: AGREGAR_SITIO
+        label: Agregar Sitio
+        layout {
+            sequence: 10
+            region: @dialog-maker-elment
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: [
+                #DEFAULT#
+                t-Button--link
+            ]
+        }
+        behavior {
+            action: redirectUrl
+            targetUrl: javascript:open_buscar_sitio()
+        }
+    )
+
+)
+

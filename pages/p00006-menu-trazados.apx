@@ -1,0 +1,117 @@
+page 6 (
+    name: MENU_TRAZADOS
+    alias: MENU-TRAZADOS
+    title: Menú trazados
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region new (
+        name: New
+        type: list
+        source {
+            list: @menu-trazados
+        }
+        layout {
+            sequence: 40
+            slot: contentBody
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--removeHeader js-removeLandmark
+                t-Region--scrollBody
+            ]
+        }
+        componentAppearance {
+            listTemplate: @/links-list
+            templateOptions: [
+                #DEFAULT#
+                t-LinksList--showTopIcons
+            ]
+        }
+    )
+
+    pageItem P6_CLICK_POSICION (
+        type: displayOnly
+        label {
+            label: New
+            alignment: left
+        }
+        settings {
+            format: html
+            sendOnPageSubmit: false
+        }
+        layout {
+            sequence: 20
+            slot: contentBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    pageItem P6_FO_ID (
+        type: textField
+        label {
+            label: Fo Id
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            slot: contentBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P6_TRAZADO (
+        type: displayOnly
+        label {
+            label: Trazado
+            alignment: left
+        }
+        settings {
+            showLineBreaks: false
+            sendOnPageSubmit: false
+        }
+        layout {
+            sequence: 30
+            slot: contentBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    computation p6-click-posicion (
+        itemName: P6_CLICK_POSICION
+        execution {
+            sequence: 10
+        }
+        computation {
+            type: expression
+            plsqlExpression: :P3_CLICK_POSICION
+        }
+    )
+
+)
+

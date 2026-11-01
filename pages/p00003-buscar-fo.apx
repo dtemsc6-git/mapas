@@ -1,0 +1,2023 @@
+page 3 (
+    name: Buscar FO
+    alias: BUSCAR-FO
+    title: Buscar FO
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function centrarMapa(data) {
+                console.log("centrarMapa: data",data)
+                const { lng, lat } = data;
+                 console.log("centrarMapa: long",lng);
+                 console.log("centrarMapa: long",lat);
+                apex.region("mapa-fo-ande").call( "getMapObject" ).flyTo({ 
+                    center: [ lng, lat ],
+                    screenSpeed: 0.7
+                });
+            }
+            
+            function setFoId( pFoId ) {
+                console.log("setFoId", pFoId);
+                $s("P3_FO_ID",pFoId);
+                
+                /*apex.server.process(
+                'SET_FO_ID', { pageItems: ['P3_FO_ID'],  },
+                {
+                    success: function (data) {console.log("SET_FO_ID", data); },
+            		error: function(error) {}
+            	}
+            	);
+                */
+                
+            } 
+            
+            function abrirDialogo() {
+                console.log("abrirDialog con FO_ID", $v("P3_FO_ID"));
+                
+                
+              /*  var url = "f?p=" +
+                $v("pFlowId") + ":" +
+                "15:" +
+                $v("pInstance") +
+                "::NO::P_ID:123";
+            
+            apex.navigation.dialog(
+                url,
+                {
+                    title: "Detalles",
+                    height: "auto",
+                    width: "800",
+                    modal: true
+                },
+                "t-Dialog-page--standard"
+            );
+            */
+            
+                apex.theme.openRegion("dialogo-agregar");
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region buscar-fo (
+        name: Buscar FO
+        type: map
+        source {
+            location: localDatabase
+            tableName: SGT_TRAZADOS_FO
+        }
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: mapa-fo-ande
+        }
+        map {
+            background: builtIn
+            standard: openstreetmapBright
+        }
+        controls {
+            options: [
+                mousewheelZoom
+                scaleBar
+                getBrowserLocation
+                distanceTool
+            ]
+        }
+        initialPositionAndZoom {
+            type: staticValues
+            longitude: -57.3332
+            latitude: -25.3332
+            zoomLevel: 6
+        }
+        attributes {
+            messagesPosition: below
+        }
+
+        layer buscar-fo (
+            name: CEOS
+            label {
+                label: CEO's
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                geometryColumn: SDO_DATA
+            }
+            pointObjects {
+                shape: Check
+            }
+            appearance {
+                fillColor: #ffcc00
+            }
+            infoWindow {
+                titleColumn: L_NAME
+                bodyColumn: L_DESC
+            }
+        )
+
+        layer elementos (
+            name: ELEMENTOS
+            layout {
+                sequence: 40
+            }
+            source {
+                tableName: SGT_CEO_ELEMENTOS
+            }
+            columnMapping {
+                geometryColumnDataType: longitudeLatitude
+                longitudeColumn: LON
+                latitudeColumn: LAT
+            }
+            pointObjects {
+                shape: Square
+            }
+            pointClustering {
+                enable: true
+                shape: Default
+            }
+            tooltip {
+                column: COMENTARIOS
+            }
+            link {
+                type: redirectThisApp
+                target: {
+                    page: 8
+                    items: {
+                        P8_ID: &ID.
+                    }
+                }
+            }
+        )
+
+        layer eventos (
+            name: EVENTOS
+            layout {
+                sequence: 50
+            }
+            source {
+                tableName: SGT_EVENTOS_FO
+                whereClause: estado = 1
+            }
+            columnMapping {
+                geometryColumnDataType: longitudeLatitude
+                longitudeColumn: LON
+                latitudeColumn: LAT
+                primaryKeyColumn: ID
+            }
+            pointObjects {
+                shape: Square Alternative
+            }
+            appearance {
+                fillColor: #f01111
+            }
+            pointClustering {
+                enable: true
+                shape: Flag Swallowtail
+            }
+            tooltip {
+                column: COMENTARIOS
+            }
+            link {
+                type: redirectThisApp
+                target: {
+                    page: 10
+                    items: {
+                        P10_ID: &ID.
+                    }
+                }
+            }
+        )
+
+        layer new (
+            name: TRAZADOS
+            layerType: lines
+            label {
+                label: Trazados
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                location: regionSource
+                useSpatialIndex: true
+            }
+            columnMapping {
+                geometryColumn: SDO_DATA
+                primaryKeyColumn: FO_ID
+            }
+            appearance {
+                strokeColor: #4cd964
+            }
+            tooltip {
+                advancedFormatting: true
+                htmlExpression:
+                    ```html
+                    <b>Nombre: </b>&L_NAME. <br/>
+                    <b>Descripción: </b>&L_DESC.
+                    ```
+            }
+            link {
+                type: redirectUrl
+                targetUrl: javascript:setFoId('&FO_ID.')
+            }
+        )
+
+        layer posicion-click (
+            name: PUNTO_CLICK
+            label {
+                label: Marcador
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    select 0 as id, mdsys.sdo_util.from_geojson( :P3_CLICK_POSICION) as geometry 
+                      from sys.dual
+                     where :P3_CLICK_POSICION is not null
+                    ```
+                pageItemsToSubmit: P3_CLICK_POSICION
+            }
+            columnMapping {
+                geometryColumn: GEOMETRY
+                primaryKeyColumn: ID
+            }
+            pointObjects {
+                shape: Pin Circle
+            }
+            appearance {
+                fillColor: #ff3b30
+                strokeColor: #ff9500
+            }
+            link {
+                type: redirectThisApp
+                target: {
+                    page: 5
+                    items: {
+                        P5_FO_ID: &P3_FO_ID.
+                        P5_LAT: &P3_LAT.
+                        P5_LNG: &P3_LONG.
+                    }
+                }
+            }
+        )
+
+    )
+
+    region dialogo-2 (
+        name: dialogo_2
+        type: staticContent
+        source {
+            htmlCode: Dialogo 2
+        }
+        layout {
+            sequence: 50
+            slot: dialogsDrawersAndPopups
+        }
+        appearance {
+            template: @/inline-dialog
+            templateOptions: [
+                #DEFAULT#
+                js-dialog-size600x400
+            ]
+        }
+    )
+
+    region dialogo-3 (
+        name: dialogo_3
+        type: staticContent
+        source {
+            htmlCode: Dialogo 3
+        }
+        layout {
+            sequence: 60
+            slot: dialogsDrawersAndPopups
+        }
+        appearance {
+            template: @/inline-dialog
+            templateOptions: [
+                #DEFAULT#
+                js-dialog-size600x400
+            ]
+        }
+    )
+
+    region mensaje (
+        name: Mensaje
+        type: staticContent
+        source {
+            htmlCode: No se selecciono un trazado
+        }
+        layout {
+            sequence: 30
+            parentRegion: @new_2
+            slot: regionBody
+        }
+        appearance {
+            template: @/alert
+            templateOptions: [
+                #DEFAULT#
+                t-Alert--horizontal
+                t-Alert--defaultIcons
+                t-Alert--warning
+                js-headingLevel-3
+            ]
+        }
+    )
+
+    region new (
+        name: enlaces_fo
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select EF.ID,
+                       NOMBRE,
+                       SITIO_ID_A,
+                       EQUIPO_ID_A,
+                       SITIO_ID_B,
+                       EQUIPO_ID_B,
+                       "CERTIFICACIÓN",
+                       UNIDAD_MEDIDA,
+                       ABS_LONGITUD,
+                       CANTIDAD_DE_PELOS,
+                       TIPO_DE_FO,
+                       TIPO,
+                       LT,
+                       CONECTOR,
+                       ESTADO,
+                       COMENTARIOS,
+                       "PROYECTO_DE_IMPLEMENTACIÓN",
+                       "FECHA_IMPLEMENTACIÓN",
+                       UNIDAD_ENCARGADA_ACTUAL,
+                       
+                       TIPO_CABLE,
+                       TIPO_TENDIDO,
+                       PUERTOS_LADO_A,
+                       PUERTOS_LADO_B, 
+                       sdo_nn_distance( 1 ) as distance
+                  from SGT_ENLACES_FO EF
+                  JOIN SGT_TRAZADOS_FO2  TF ON EF.ID = TF.FO_ID
+                  WHERE 
+                
+                  sdo_nn( TF.SDO_DATA , mdsys.sdo_util.from_geojson (:P3_CLICK_POSICION ), 'distance=2 unit=km',   1 ) = 'TRUE' 
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: [
+                #DEFAULT#
+                t-IRR-region--hideHeader js-addHiddenHeadingRoleDesc
+            ]
+        }
+        config {
+            buildOption: @commented-out
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        advanced {
+            savedReportMappingIdentifier: 10801688831897241
+        }
+
+        column ABS_LONGITUD (
+            type: plainText
+            heading {
+                heading: Abs Longitud
+                alignment: end
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+            config {
+                buildOption: @commented-out
+            }
+        )
+
+        column CANTIDAD_DE_PELOS (
+            type: plainText
+            heading {
+                heading: Cantidad De Pelos
+                alignment: end
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column CERTIFICACIÓN (
+            type: plainText
+            heading {
+                heading: Certificación
+                alignment: end
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column COMENTARIOS (
+            type: plainText
+            heading {
+                heading: Comentarios
+            }
+            layout {
+                sequence: 160
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column CONECTOR (
+            type: plainText
+            heading {
+                heading: Conector
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column DISTANCE (
+            type: plainText
+            heading {
+                heading: Distance
+                alignment: end
+            }
+            layout {
+                sequence: 280
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column EQUIPO_ID_A (
+            type: plainText
+            heading {
+                heading: Equipo Id A
+                alignment: end
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: D
+            }
+            config {
+                buildOption: @commented-out
+            }
+        )
+
+        column EQUIPO_ID_B (
+            type: plainText
+            heading {
+                heading: Equipo Id B
+                alignment: end
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+            config {
+                buildOption: @commented-out
+            }
+        )
+
+        column ESTADO (
+            type: plainText
+            heading {
+                heading: Estado
+            }
+            layout {
+                sequence: 150
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column FECHA_IMPLEMENTACIÓN (
+            type: plainText
+            heading {
+                heading: Fecha Implementación
+            }
+            layout {
+                sequence: 180
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column ID (
+            type: plainText
+            heading {
+                heading: Id
+                alignment: end
+            }
+            layout {
+                sequence: 10
+                columnAlignment: end
+            }
+            source {
+                primaryKey: true
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column LT (
+            type: plainText
+            heading {
+                heading: Lt
+            }
+            layout {
+                sequence: 130
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column NOMBRE (
+            type: plainText
+            heading {
+                heading: Nombre
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column PROYECTO_DE_IMPLEMENTACIÓN (
+            type: plainText
+            heading {
+                heading: Proyecto De Implementación
+            }
+            layout {
+                sequence: 170
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column PUERTOS_LADO_A (
+            type: plainText
+            heading {
+                heading: Puertos Lado A
+            }
+            layout {
+                sequence: 260
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column PUERTOS_LADO_B (
+            type: plainText
+            heading {
+                heading: Puertos Lado B
+            }
+            layout {
+                sequence: 270
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column SITIO_ID_A (
+            type: plainText
+            heading {
+                heading: Sitio Id A
+                alignment: end
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: C
+            }
+            config {
+                buildOption: @commented-out
+            }
+        )
+
+        column SITIO_ID_B (
+            type: plainText
+            heading {
+                heading: Sitio Id B
+                alignment: end
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: E
+            }
+            config {
+                buildOption: @commented-out
+            }
+        )
+
+        column TIPO (
+            type: plainText
+            heading {
+                heading: Tipo
+            }
+            layout {
+                sequence: 120
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column TIPO_CABLE (
+            type: plainText
+            heading {
+                heading: Tipo Cable
+            }
+            layout {
+                sequence: 240
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column TIPO_DE_FO (
+            type: plainText
+            heading {
+                heading: Tipo De Fo
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column TIPO_TENDIDO (
+            type: plainText
+            heading {
+                heading: Tipo Tendido
+            }
+            layout {
+                sequence: 250
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column UNIDAD_ENCARGADA_ACTUAL (
+            type: plainText
+            heading {
+                heading: Unidad Encargada Actual
+            }
+            layout {
+                sequence: 190
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column UNIDAD_MEDIDA (
+            type: plainText
+            heading {
+                heading: Unidad Medida
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn ABS_LONGITUD (
+                sequence: 9
+            )
+
+            displayColumn CANTIDAD_DE_PELOS (
+                sequence: 10
+            )
+
+            displayColumn CERTIFICACIÓN (
+                sequence: 7
+            )
+
+            displayColumn COMENTARIOS (
+                sequence: 16
+            )
+
+            displayColumn CONECTOR (
+                sequence: 14
+            )
+
+            displayColumn EQUIPO_ID_A (
+                sequence: 4
+            )
+
+            displayColumn EQUIPO_ID_B (
+                sequence: 6
+            )
+
+            displayColumn ESTADO (
+                sequence: 15
+            )
+
+            displayColumn FECHA_IMPLEMENTACIÓN (
+                sequence: 18
+            )
+
+            displayColumn ID (
+                sequence: 1
+            )
+
+            displayColumn LT (
+                sequence: 13
+            )
+
+            displayColumn NOMBRE (
+                sequence: 2
+            )
+
+            displayColumn PROYECTO_DE_IMPLEMENTACIÓN (
+                sequence: 17
+            )
+
+            displayColumn PUERTOS_LADO_A (
+                sequence: 22
+            )
+
+            displayColumn PUERTOS_LADO_B (
+                sequence: 23
+            )
+
+            displayColumn SITIO_ID_A (
+                sequence: 3
+            )
+
+            displayColumn SITIO_ID_B (
+                sequence: 5
+            )
+
+            displayColumn TIPO (
+                sequence: 12
+            )
+
+            displayColumn TIPO_CABLE (
+                sequence: 20
+            )
+
+            displayColumn TIPO_DE_FO (
+                sequence: 11
+            )
+
+            displayColumn TIPO_TENDIDO (
+                sequence: 21
+            )
+
+            displayColumn UNIDAD_ENCARGADA_ACTUAL (
+                sequence: 19
+            )
+
+            displayColumn UNIDAD_MEDIDA (
+                sequence: 8
+            )
+
+        )
+
+    )
+
+    region new_1 (
+        name: Eventos
+        type: interactiveReport
+        source {
+            location: localDatabase
+            tableName: SGT_EVENTOS_FO
+            whereClause: fo_id = :P3_FO_ID
+            orderByClause: ID desc
+            pageItemsToSubmit: P3_FO_ID
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: [
+                #DEFAULT#
+                t-IRR-region--hideHeader js-addHiddenHeadingRoleDesc
+            ]
+        }
+        link {
+            linkColumn: customTarget
+            target: {
+                type: url
+                url: javascript:console.log('#ID#')
+            }
+            linkIcon: <span class="t-Icon fa fa-lg fa-map-marker-s u-danger-text" aria-hidden="true"></span>
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        advanced {
+            savedReportMappingIdentifier: 11185204281192302
+        }
+
+        column CREADO_EL (
+            type: plainText
+            heading {
+                heading: Creado El
+            }
+            layout {
+                sequence: 120
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: L
+            }
+            config {
+                buildOption: @commented-out
+            }
+        )
+
+        column CREADO_POR (
+            type: plainText
+            heading {
+                heading: Creado Por
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+            config {
+                buildOption: @commented-out
+            }
+        )
+
+        column CRITICIDAD (
+            type: plainText
+            heading {
+                heading: Criticidad
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column ESTADO (
+            type: plainText
+            heading {
+                heading: Estado
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column FECHA_FIN (
+            type: plainText
+            heading {
+                heading: Fecha Fin
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column FECHA_INICIO (
+            type: plainText
+            heading {
+                heading: Fecha Inicio
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column FO_ID (
+            type: plainText
+            heading {
+                heading: Fo Id
+                alignment: end
+            }
+            layout {
+                sequence: 20
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column ID (
+            type: hidden
+            heading {
+                heading: Id
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                primaryKey: true
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column LAT (
+            type: plainText
+            heading {
+                heading: Lat
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column LON (
+            type: plainText
+            heading {
+                heading: Lon
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column MODIFICADO_EL (
+            type: plainText
+            heading {
+                heading: Modificado El
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: N
+            }
+            config {
+                buildOption: @commented-out
+            }
+        )
+
+        column MODIFICADO_POR (
+            type: plainText
+            heading {
+                heading: Modificado Por
+            }
+            layout {
+                sequence: 130
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+            config {
+                buildOption: @commented-out
+            }
+        )
+
+        column TIPO_EVENTO (
+            type: plainText
+            heading {
+                heading: Tipo Evento
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column TIPO_FALLA (
+            type: plainText
+            heading {
+                heading: Tipo Falla
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn CREADO_EL (
+                sequence: 12
+            )
+
+            displayColumn CREADO_POR (
+                sequence: 11
+            )
+
+            displayColumn CRITICIDAD (
+                sequence: 6
+            )
+
+            displayColumn ESTADO (
+                sequence: 5
+            )
+
+            displayColumn FECHA_FIN (
+                sequence: 10
+            )
+
+            displayColumn FECHA_INICIO (
+                sequence: 9
+            )
+
+            displayColumn FO_ID (
+                sequence: 2
+            )
+
+            displayColumn ID (
+                sequence: 1
+            )
+
+            displayColumn LAT (
+                sequence: 8
+            )
+
+            displayColumn LON (
+                sequence: 7
+            )
+
+            displayColumn MODIFICADO_EL (
+                sequence: 14
+            )
+
+            displayColumn MODIFICADO_POR (
+                sequence: 13
+            )
+
+            displayColumn TIPO_EVENTO (
+                sequence: 3
+            )
+
+            displayColumn TIPO_FALLA (
+                sequence: 4
+            )
+
+        )
+
+    )
+
+    region new_2 (
+        name: AGREGAR_ELEMENTOS
+        type: staticContent
+        layout {
+            sequence: 40
+            slot: dialogsDrawersAndPopups
+        }
+        appearance {
+            template: @/inline-dialog
+            templateOptions: [
+                #DEFAULT#
+                js-dialog-size480x320
+            ]
+        }
+        advanced {
+            htmlDomId: dialogo-agregar
+        }
+    )
+
+    region new_3 (
+        name: menu_ceo
+        type: list
+        source {
+            list: @menu-ceo
+        }
+        layout {
+            sequence: 40
+            parentRegion: @new_2
+            slot: regionBody
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--removeHeader js-removeLandmark
+                t-Region--scrollBody
+            ]
+        }
+        componentAppearance {
+            listTemplate: @/links-list
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region ruta-de-navegación (
+        name: Ruta de Navegación
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: [
+                #DEFAULT#
+                t-BreadcrumbRegion--useBreadcrumbTitle
+            ]
+        }
+        config {
+            buildOption: @commented-out
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    pageItem P3_CLICK_POSICION (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 70
+            region: @buscar-fo
+            slot: regionBody
+        }
+    )
+
+    pageItem P3_FO_ID (
+        type: popupLov
+        label {
+            label: FO Seleccionada
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select nombre, id 
+                from sgt_enlaces_fo
+                ```
+            nullDisplayValue: Seleccione Una
+        }
+        layout {
+            sequence: 80
+            region: @buscar-fo
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P3_LAT (
+        type: textField
+        label {
+            label: Latitud
+            alignment: left
+        }
+        layout {
+            sequence: 60
+            region: @buscar-fo
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        help {
+            inlineHelpText: Ingrese la latitud
+        }
+    )
+
+    pageItem P3_LONG (
+        type: textField
+        label {
+            label: Longitud
+            alignment: left
+        }
+        layout {
+            sequence: 50
+            region: @buscar-fo
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        help {
+            inlineHelpText: Ingrese la longitud
+        }
+    )
+
+    pageItem P3_POR_LAT_LONG (
+        type: switch
+        label {
+            label: Nuevo
+            alignment: left
+        }
+        settings {
+            useDefaults: false
+            onValue: 1
+            offValue: 0
+        }
+        layout {
+            sequence: 30
+            region: @buscar-fo
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        help {
+            inlineHelpText: Mostrar LONG/LAT
+        }
+    )
+
+    pageItem P3_URL (
+        type: textField
+        label {
+            label: URL
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @buscar-fo
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button buscar (
+        buttonName: Limpiar
+        label: Limpiar
+        layout {
+            sequence: 40
+            region: @buscar-fo
+            slot: regionBody
+            startNewRow: false
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--large
+                t-Button--gapTop
+            ]
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    dynamicAction mapclick (
+        name: MapClick
+        execution {
+            sequence: 30
+        }
+        when {
+            event: region/map/spatialmapclick
+            selectionType: region
+            region: @buscar-fo
+        }
+
+        action abrirmodal_1 (
+            name: SETEAR_DATOS
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    APEX_UTIL.SET_SESSION_STATE('P3_FO_ID', :P3_FO_ID);
+                    APEX_UTIL.SET_SESSION_STATE('P3_LONG' , :P3_LONG);
+                    APEX_UTIL.SET_SESSION_STATE('P3_LAT'  , :P3_LAT);
+                    ```
+                itemsToSubmit: [
+                    P3_LONG
+                    P3_LAT
+                    P3_FO_ID
+                ]
+            }
+            execution {
+                sequence: 70
+                fireOnInit: false
+            }
+        )
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    /* const { lng, lat } = this.data;
+                    
+                    apex.region("mapa-fo-ande").call( "getMapObject" ).flyTo({ 
+                        center: [ lng, lat ],
+                        screenSpeed: 0.7
+                    });
+                    
+                    */
+                    
+                    centrarMapa(this.data);
+                    ```
+            }
+            execution {
+                sequence: 90
+                fireOnInit: false
+            }
+        )
+
+        action native-javascript-code_1 (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    console.log("MapClick: ",this);
+                    setFoId(null);
+                    //obtener features cerca del click:
+                    
+                    
+                    /*const features = apex.region("mapa-fo-ande").call( "getMapObject" ).queryRenderedFeatures(this.data);
+                        if (features.length > 0) {
+                            console.log('ID:', features[0].properties.id);
+                        }
+                    */
+                     
+                    ```
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value_1 (
+            action: setValue
+            settings {
+                type: jsExpression
+                jsExpression: "JSON.stringify({ \"type\":\"Point\", \"coordinates\": [this.data.lng, this.data.lat]})"
+            }
+            affectedElements {
+                selectionType: items
+                items: P3_CLICK_POSICION
+            }
+            execution {
+                sequence: 60
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value_1_1_1 (
+            action: setValue
+            settings {
+                type: jsExpression
+                jsExpression: this.data.lat
+            }
+            affectedElements {
+                selectionType: items
+                items: P3_LAT
+            }
+            execution {
+                sequence: 50
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value_1_2 (
+            action: setValue
+            settings {
+                type: jsExpression
+                jsExpression: this.data.lng
+            }
+            affectedElements {
+                selectionType: items
+                items: P3_LONG
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new (
+        name: MapObjectClick
+        execution {
+            sequence: 25
+        }
+        when {
+            event: region/map/spatialmapobjectclick
+            selectionType: region
+            region: @buscar-fo
+        }
+
+        action abrirmodal (
+            name: SETEAR_DATOS
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    APEX_UTIL.SET_SESSION_STATE('P3_FO_ID', :P3_FO_ID);
+                    APEX_UTIL.SET_SESSION_STATE('P3_LONG', :P3_LONG);
+                    APEX_UTIL.SET_SESSION_STATE('P3_LAT', :P3_LAT);
+                    ```
+                itemsToSubmit: [
+                    P3_LONG
+                    P3_LAT
+                    P3_FO_ID
+                ]
+            }
+            execution {
+                sequence: 70
+                fireOnInit: false
+            }
+        )
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    console.log("MapObjectClick: ",this);
+                    
+                     
+                    ```
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-javascript-code_2 (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    /*
+                    const { lng, lat } = this.data;
+                    
+                    apex.region("mapa-fo-ande").call( "getMapObject" ).flyTo({ 
+                        center: [ lng, lat ],
+                        screenSpeed: 0.7
+                    });
+                    
+                    */
+                    centrarMapa(this.data);
+                    ```
+            }
+            execution {
+                sequence: 80
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            name: SET_VALUE_CLICK_POS
+            action: setValue
+            settings {
+                type: jsExpression
+                jsExpression: "JSON.stringify({\"type\":\"Point\", \"coordinates\": [this.data.lng, this.data.lat]})"
+            }
+            affectedElements {
+                selectionType: items
+                items: P3_CLICK_POSICION
+            }
+            execution {
+                sequence: 60
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value_1_1 (
+            name: SET_VALUE_LAT
+            action: setValue
+            settings {
+                type: jsExpression
+                jsExpression: this.data.lat
+            }
+            affectedElements {
+                selectionType: items
+                items: P3_LAT
+            }
+            execution {
+                sequence: 50
+                fireOnInit: false
+            }
+        )
+
+        action set-value-long (
+            name: SET_VALUE_LONG
+            action: setValue
+            settings {
+                type: jsExpression
+                jsExpression: this.data.lng
+            }
+            affectedElements {
+                selectionType: items
+                items: P3_LONG
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new_1 (
+        name: TOOGLE_MENSAJE
+        execution {
+            sequence: 50
+        }
+        when {
+            selectionType: items
+            items: P3_FO_ID
+        }
+        clientSideCondition {
+            type: itemIsNotNull
+            item: P3_FO_ID
+        }
+
+        action native-hide (
+            action: hide
+            affectedElements {
+                selectionType: region
+                region: @mensaje
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+        action native-show (
+            action: show
+            affectedElements {
+                selectionType: region
+                region: @mensaje
+            }
+            execution {
+                sequence: 10
+                fireWhenEventResultIs: false
+            }
+        )
+
+    )
+
+    dynamicAction new_2 (
+        name: New
+        execution {
+            sequence: 90
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @buscar
+        }
+
+        action native-clear (
+            action: clear
+            affectedElements {
+                selectionType: items
+                items: P3_URL
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new_4 (
+        name: New
+        execution {
+            sequence: 80
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: region
+            region: @dialogo-3
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @buscar-fo
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction nuevo (
+        name: TOOGLE_LAT_LONG
+        execution {
+            sequence: 10
+        }
+        when {
+            selectionType: items
+            items: P3_POR_LAT_LONG
+        }
+        clientSideCondition {
+            type: item!=value
+            item: P3_POR_LAT_LONG
+            value: 1
+        }
+
+        action native-show (
+            action: show
+            affectedElements {
+                selectionType: items
+                items: [
+                    P3_LONG
+                    P3_LAT
+                ]
+            }
+            execution {
+                sequence: 10
+                fireWhenEventResultIs: false
+            }
+        )
+
+        action ocultar-lat-long (
+            name: Show
+            action: hide
+            affectedElements {
+                selectionType: items
+                items: [
+                    P3_LONG
+                    P3_LAT
+                ]
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction refresh (
+        name: REFRESH
+        execution {
+            sequence: 40
+        }
+        when {
+            selectionType: items
+            items: P3_CLICK_POSICION
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @buscar-fo
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh_1 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @new_1
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction setear-valores (
+        name: setear valores
+        execution {
+            sequence: 20
+        }
+        when {
+            event: focusout
+            selectionType: items
+            items: P3_URL
+        }
+
+        action native-javascript-code (
+            name: extraer_lat_long
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    //
+                    url = this.triggeringElement.value;
+                    let m = url.match(/[?&]q=(-?\d+\.?\d*)(?:%2C|,)(-?\d+\.?\d*)/i);
+                    
+                    //Si hay m parseo las latitudes, si no, la url esta mál
+                    let data = {};
+                    if (m) {
+                        $s("P3_LAT", m[1]);
+                        $s("P3_LONG", m[2]);
+                        punto = { "type": "Point", "coordinates": m }
+                        $s("P3_CLICK_POSICION", JSON.stringify(punto))
+                        data.lng = m[2], data.lat = m[1]
+                        centrarMapa( data );   
+                        return;
+                    }
+                    
+                    // Formato /@lat,lng
+                    m = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+                    console.log("M es:", m);
+                    if (m) {
+                        $s("P3_LAT", m[1]); $s("P3_LONG", m[2]);
+                    
+                        punto = { "type": "Point", "coordinates": [m[2],m[1]] }
+                        $s("P3_CLICK_POSICION", JSON.stringify(punto))
+                        data.lng = m[2], data.lat = m[1]
+                        centrarMapa( data );   
+                        return;
+                    };
+                    
+                    $s("P3_LAT", "");
+                    $s("P3_LONG", "");
+                    ```
+            }
+            affectedElements {
+                selectionType: items
+                items: P3_POR_LAT_LONG
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process guardar-fo-id (
+        name: SET_FO_ID
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                APEX_UTIL.SET_SESSION_STATE('P3_FO_ID', :P3_FO_ID);
+                
+                apex_json.open_object();
+                apex_json.write('success', true );
+                apex_json.close_object();
+                ```
+        }
+        execution {
+            sequence: 10
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 11127462784761221
+        }
+    )
+
+)
+
