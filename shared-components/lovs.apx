@@ -245,3 +245,21 @@ lov fo-nombres (
     }
 )
 
+lov trazados-name (
+    name: TRAZADOS_NOMBRE
+    source {
+        type: sqlQuery
+        sqlQuery:
+            ```sql
+            SELECT DISTINCT T.FO_ID, FO.NOMBRE FROM
+            SGT_TRAZADOS_FO T JOIN 
+            SGT_ENLACES_FO FO ON T.FO_ID = FO.ID
+            ```
+    }
+    columnMapping {
+        return: FO_ID
+        display: NOMBRE
+        defaultSort: NOMBRE
+    }
+)
+

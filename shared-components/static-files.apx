@@ -1,3 +1,8 @@
+file "page2.js" (
+    mimeType: application/javascript
+    charSet: utf-8
+)
+
 file "icons/app-icon-144-rounded.png" (
     mimeType: image/png
     charSet: utf-8

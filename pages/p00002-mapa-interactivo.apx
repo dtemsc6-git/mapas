@@ -12,257 +12,25 @@ page 2 (
     }
     javaScript {
         fileUrls: [
-            https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js
-            --Dibujar en el mapa
-            https://unpkg.com/terra-draw@1.0.0/dist/terra-draw.umd.js
-            --Adaptador
-            https://unpkg.com/terra-draw-maplibre-gl-adapter@1.0.0/dist/terra-draw-maplibre-gl-adapter.umd.js
-            --Controles
-            https://unpkg.com/@watergis/maplibre-gl-terradraw/dist/maplibre-gl-terradraw.umd.js
-            --https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.4.3/mapbox-gl-draw.js
+            https://unpkg.com/@watergis/maplibre-gl-terradraw@1.16.0/dist/maplibre-gl-terradraw.umd.js
+            #APP_FILES#page2.js
         ]
         functionAndGlobalVariableDeclaration:
             ```javascript-browser
-            const map = new maplibregl.Map({
+            
+            /*const map = new maplibregl.Map({
               container: 'map-gl',
               // style: 'https://demotiles.maplibre.org/style.json', // Cambia por tu estilo Vector Tile
               style: 'https://tiles.openfreemap.org/styles/bright', // Cambia por tu estilo Vector Tile
               center: [-57.3332, -25.3332], // [Longitud, Latitud]
               zoom: 0
             });
-            
-            ```
-        executeWhenPageLoads:
-            ```javascript-browser
-            //const terraDraw = terraDraw.TerraDraw
-            // 2026-10-24 Comentado.
-            //const terraAdapter = terraDrawMaplibreGlAdapter.TerraDrawMapLibreGLAdapter
-            
-            
-            //Agregar los controles
-            //estos pasos voy a borrar...
-            map.addControl(new maplibregl.NavigationControl(), 'top-right');
-            
-            // Añadir control de geolocalización
-            map.addControl(new maplibregl.GeolocateControl({
-                positionOptions: { enableHighAccuracy: true },
-                trackUserLocation: true
-            }), 'top-right');
-            
-            map.addControl(new maplibregl.ScaleControl({
-                maxWidth: 100,
-                unit: 'metric'
-            }), 'bottom-right')
-            // Crear el control de dibujo
-            //borrar hasta aqui.
-            //--- este se debe agregar al mapa de apex.---
-            const drawControl = new MaplibreTerradrawControl.MaplibreTerradrawControl({
-                // Aquí puedes configurar qué herramientas mostrar y su estilo
-                //modes: ['render', 'marker', 'linestring', 'select', 'delete', 'download'],
-                //open: true, // Para que el panel aparezca abierto por defecto
-                modes: ['render', 'marker', 'linestring', 'select', 'delete'],
-                open: true
-            
-            });
-            //--- hasta aqui.
-            
-            // Añadir el control al mapa
-            
-            map.addControl(drawControl, 'top-left');
-            
-            // ..::2026-10-24 Comentado hasta aquí::.. / 
-            
-            
-            
-            /*Agregado para poner el control de puntos. 
-            Borrar esta parte.
             */
-            
-            // 1. Inicializar mapa (se asume que ya tienes la instancia map)
-            // const map = new mapgl.Map('container', { ... });
-            
-            // 2. Almacenar todos los puntos de la polilínea
-            let linePoints = [];
-            let polyline = null;
-            
-            // 3. Crear control personalizado (botón +)
-            const btnHtml = 'div'
-            
-            class btnControl {
-                onAdd(map) {
-                    this._map = map;
-                    this._container = document.createElement(btnHtml);
-                    this._container.className = 'maplibregl-ctrl';
-                    this._container.id = 'add-point-btn';
-                    this._container.textContent = 'Puntos';
-                    return this._container;
-                }
-                onRemove() {
-                    this._container.remove();
-                    this._map = null;
-                }
-            }
-            
-            
-            // Agregar control a la esquina inferior derecha
-            const customControl = map.addControl(new btnControl(), 'bottom-right');
-            
-            // 4. Vincular evento de clic al botón
-            // Nota: Es necesario obtener el elemento DOM real a través de getContainer
-            const btnElement = customControl.getContainer().querySelector('#add-point-btn');
-            
-            btnElement.addEventListener('click', () => {
-            
-                // Crear las coordenadas.
-                const sourceId = "mi-linea-source";
-                const layerId = "mi-linea-layer";
-                const sourcePuntosId = "mis-puntos-source";
-                const layerPuntosId = "mis-puntos-layer";
-                // Definir la fuente GeoJSON
-            
-            
-                // Obtener coordenadas del centro de la pantalla
-                const center = map.getCenter();
-            
-                // Agregar al arreglo de puntos
-                linePoints.push([center.lng, center.lat]);
-            
-                const geojson = {
-                    type: "Feature",
-                    geometry: {
-                        type: "LineString",
-                        coordinates: linePoints
-                    },
-                    properties: {}
-                };
-            
-                const geojsonPuntos = {
-                    type: "Feature",
-                    geometry: {
-                        type: "Point",
-                        coordinates: linePoints
-                    },
-                    properties: {}
-                };
-            
-            
-                if (map.getSource(sourceId)) {
-                    map.getSource(sourceId).setData(geojson);
-                } else {
-                    // Si no existe, crearla
-                    map.addSource(sourceId, {
-                        type: "geojson",
-                        data: geojson
-                    });
-            
-                    map.addLayer({
-                        id: layerId,
-                        type: "line",
-                        source: sourceId,
-                        layout: {
-                            "line-join": "round",
-                            "line-cap": "round"
-                        },
-                        paint: {
-                            "line-color": "#41e8e2c1",
-                            "line-width": 2
-                        }
-                    });
-                }
-                //Agregar capa puntos
-                if (map.getSource(sourcePuntosId)) {
-                    map.getSource(sourcePuntosId).setData(geojsonPuntos);
-                } else {
-                    // Si no existe, crearla
-                    map.addSource(sourcePuntosId, {
-                        type: "geojson",
-                        data: geojsonPuntos
-                    });
-            
-                    map.addLayer({
-                        id: layerPuntosId,
-                        type: "Point",
-                        source: sourcePuntosId,
-                        layout: {
-                            "line-join": "round",
-                            "line-cap": "round"
-                        },
-                        paint: {
-                            "line-color": "#a5d4ebff",
-                            "line-width": 2
-                        }
-                    });
-                }
-            
-            });
-            //-- borrar hasta aqui, crear todo en una nueva pagina, y que estire los datos desde 
-            
-            
-            map.on('load', () => {
-                console.log("Map Cargado:")
-            
-            
-                const draw = drawControl.getTerraDrawInstance();
-            
-                draw.on("finish", function (id, context) {
-            
-                    // Obtener todos los features (cada uno es un objeto Feature estándar de GeoJSON)
-            
-                    console.log("Draw context", context);
-                    const modeState = draw.getModeState();
-                    const features = draw.getSnapshot();
-            
-                    // Ensamblar como FeatureCollection
-                    const geojson = {
-                        type: 'FeatureCollection',
-                        features: features
-                    };
-            
-                    console.log("GeoJSON completo:", JSON.stringify(geojson));
-                    console.log("DrawState:", modeState);
-                    $s('P2_GEOJSON', JSON.stringify(geojson))
-            
-                    if (context.mode === 'marker') {
-                        apex.theme.openRegion("dialog-marker");
-                        //Cargar los datos del elemento seleccionado, los marcadores no de deberian de guardar aún en la db?
-                    }
-                    else {
-                        apex.theme.openRegion("dialog-guardar");
-                    }
-            
-                })
-                console.log("Draw", draw);
-            
-                if (draw) {
-                    //Hay un control, se le agrega los datos.
-                    console.log("Control:", draw);
-                    draw.updateModeOptions({
-                        linestring: {
-                            snapping: {
-                                pixelTolerance: 20,
-                                modes: ['point', 'linestring']
-                            },
-                            styles: {
-                                snappingPointColor: '#00FF00',
-                                snappingPointWidth: 6
-                            }
-                        }
-                    });
-            
-            
-                }
-            });
-            
-            
-            
             ```
+        executeWhenPageLoads: page2.init();
     }
     css {
-        fileUrls: [
-            https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css
-            --Controles
-            https://unpkg.com/@watergis/maplibre-gl-terradraw/dist/maplibre-gl-terradraw.css
-        ]
+        fileUrls: https://unpkg.com/@watergis/maplibre-gl-terradraw@1.16.0/dist/maplibre-gl-terradraw.css
         inline:
             ```css
             #map-gl {
@@ -330,6 +98,87 @@ page 2 (
         advanced {
             htmlDomId: map-gl
         }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    region mapa-gl (
+        name: MAPA
+        type: map
+        source {
+            location: localDatabase
+            tableName: SGT_TRAZADOS_FO
+            whereClause: FO_ID = :P2_TRAZADO_ID
+            pageItemsToSubmit: P2_TRAZADO_ID
+        }
+        layout {
+            sequence: 40
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--removeHeader js-removeLandmark
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            htmlDomId: MAPA-GL
+        }
+        map {
+            background: builtIn
+            standard: openstreetmapBright
+        }
+        controls {
+            options: [
+                mousewheelZoom
+                rectangleZoom
+                scaleBar
+                infiniteMap
+            ]
+        }
+        attributes {
+            messagesPosition: below
+        }
+
+        layer mapatrazados (
+            name: MapaTrazados
+            layerType: lines
+            layout {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                geometryColumn: SDO_DATA
+                primaryKeyColumn: ID
+            }
+            appearance {
+                strokeColor: #101010
+            }
+        )
+
+        layer puntos (
+            name: Puntos
+            layout {
+                sequence: 20
+            }
+            source {
+                location: regionSource
+                useSpatialIndex: true
+            }
+            columnMapping {
+                geometryColumn: SDO_DATA
+                primaryKeyColumn: ID
+            }
+            tooltip {
+                column: L_NAME
+            }
+        )
+
     )
 
     pageItem P2_COLOR (
@@ -371,15 +220,19 @@ page 2 (
     )
 
     pageItem P2_TRAZADO_ID (
-        type: textField
+        type: popupLov
         label {
             label: Trazado Id
             alignment: left
         }
+        lov {
+            type: sharedComponent
+            lov: @trazados-name
+            nullDisplayValue: Seleccione Una
+        }
         layout {
-            sequence: 10
-            region: @dialog-map-element
-            slot: regionBody
+            sequence: 30
+            slot: body
             alignment: left
         }
         appearance {
@@ -429,6 +282,85 @@ page 2 (
             action: redirectUrl
             targetUrl: javascript:open_buscar_sitio()
         }
+    )
+
+    dynamicAction new (
+        name: REFRESCAR_MAPA
+        execution {
+            sequence: 10
+        }
+        when {
+            selectionType: items
+            items: P2_TRAZADO_ID
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @mapa-gl
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction preparar-encuadre (
+        name: PREPARAR_ENCUADRE
+        execution {
+            sequence: 20
+        }
+        when {
+            event: apexafterrefresh
+            selectionType: region
+            region: @mapa-gl
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    
+                    const region = apex.region("MAPA-GL");
+                    // Registrar antes del refresh y evitar manejadores duplicados.
+                    region.element.off("apexafterrefresh.encuadrarTrazado")
+                        .one("apexafterrefresh.encuadrarTrazado", function () {
+                            const bbox = region.mapData?.map?.bbox;
+                            const map = region.getMapObject();
+                            if (!map || !Array.isArray(bbox)) {
+                                return;
+                            }
+                            // Coordenadas WGS 84: longitud, latitud; sin transformacion.
+                            const coordinates = bbox.flat();
+                            if (coordinates.length !== 4 ||
+                                !coordinates.every(Number.isFinite)) {
+                                return;
+                            }
+                            const [west, south, east, north] = coordinates;
+                            if (west < -180 || east > 180 || west > east ||
+                                south < -90 || north > 90 || south > north) {
+                                return;
+                            }
+                            map.fitBounds([[west, south], [east, north]], {
+                                padding: 40,
+                                maxZoom: 16,
+                                duration: 700,
+                                bearing: map.getBearing()
+                            });
+                        });
+                    
+                    ```
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
     )
 
 )
