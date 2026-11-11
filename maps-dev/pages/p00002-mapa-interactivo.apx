@@ -322,6 +322,363 @@ page 2 (
 
     )
 
+    process save-map-features (
+        name: SAVE_MAP_FEATURES
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                    -- GeoJSON WGS 84: longitud/latitud y altura opcional.
+                    c_collection constant varchar2(30) := 'P2_MAP_SAVES';
+                    c_max_chars constant pls_integer := 5 * 1024 * 1024;
+                    l_geojson clob;
+                    l_document json_object_t;
+                    l_features json_array_t;
+                    l_deletions json_array_t := json_array_t();
+                    l_feature json_object_t;
+                    l_properties json_object_t;
+                    l_geometry json_object_t;
+                    l_geometry_json clob;
+                    l_element json_element_t;
+                    l_coordinates json_array_t;
+                    l_fo_id sgt_enlaces_fo.id%type;
+                    l_locked_id sgt_enlaces_fo.id%type;
+                    l_token varchar2(80) := apex_application.g_x02;
+                    l_srid number;
+                    l_diminfo mdsys.sdo_dim_array;
+                    l_input_dimensions pls_integer;
+                    l_total pls_integer;
+                    l_count pls_integer;
+                    l_inserted pls_integer := 0;
+                    l_updated pls_integer := 0;
+                    l_deleted pls_integer := 0;
+                    l_validation varchar2(4000);
+                    l_message varchar2(4000);
+                    l_code number;
+                    type t_row is record (
+                        id sgt_trazados_fo.id%type,
+                        geometry_type sgt_trazados_fo.type%type,
+                        name sgt_trazados_fo.l_name%type,
+                        description sgt_trazados_fo.l_desc%type,
+                        geometry mdsys.sdo_geometry
+                    );
+                    type t_rows is table of t_row index by pls_integer;
+                    type t_ids is table of number index by pls_integer;
+                    type t_seen is table of boolean index by varchar2(100);
+                    l_rows t_rows;
+                    l_delete_ids t_ids;
+                    l_seen t_seen;
+
+                    procedure require(p_condition boolean, p_message varchar2) is
+                    begin
+                        if p_condition is null or not p_condition then
+                            raise_application_error(-20001, p_message);
+                        end if;
+                    end;
+
+                    function record_id(p_element json_element_t) return number is
+                        l_text varchar2(100);
+                        l_id number;
+                        l_wrapper json_object_t := json_object_t();
+                    begin
+                        require(p_element is not null, 'Falta un ID de registro.');
+                        require(p_element.is_string() or p_element.is_number(), 'ID de registro invalido.');
+                        if p_element.is_string() then
+                            l_wrapper.put('id', p_element);
+                            l_text := l_wrapper.get_string('id');
+                        else
+                            l_text := p_element.to_string();
+                        end if;
+                        require(length(l_text) <= 38 and regexp_like(l_text, '^[0-9]+$'),
+                            'ID de registro invalido.');
+                        l_id := to_number(l_text);
+                        require(l_id > 0 and l_id = trunc(l_id), 'ID de registro invalido.');
+                        return l_id;
+                    end;
+
+                    procedure remember_id(p_id number) is
+                        l_key varchar2(100) := to_char(p_id, 'TM9');
+                    begin
+                        require(not l_seen.exists(l_key), 'Un registro aparece mas de una vez en el lote.');
+                        l_seen(l_key) := true;
+                    end;
+
+                    function optional_text(p_object json_object_t, p_key varchar2, p_bytes pls_integer)
+                        return varchar2 is
+                        l_value json_element_t := p_object.get(p_key);
+                        l_text varchar2(32767);
+                    begin
+                        if l_value is null then return null; end if;
+                        if l_value.is_null() then return null; end if;
+                        require(l_value.is_string(), 'Nombre y descripcion deben ser textos.');
+                        l_text := p_object.get_string(p_key);
+                        require(nvl(lengthb(l_text), 0) <= p_bytes,
+                            'Nombre o descripcion supera la longitud permitida.');
+                        return l_text;
+                    end;
+
+                    procedure validate_position(p_value json_element_t) is
+                        l_position json_array_t;
+                        l_number json_element_t;
+                        l_x number;
+                        l_y number;
+                    begin
+                        require(p_value is not null, 'Faltan coordenadas.');
+                        require(p_value.is_array(), 'Una posicion debe ser un array.');
+                        l_position := treat(p_value as json_array_t);
+                        require(l_position.get_size() in (2, 3), 'Se requieren dos o tres coordenadas por posicion.');
+                        if l_input_dimensions is null then l_input_dimensions := l_position.get_size(); end if;
+                        require(l_position.get_size() = l_input_dimensions,
+                            'No se pueden mezclar dimensiones dentro de una geometria.');
+                        for j in 0 .. l_position.get_size() - 1 loop
+                            l_number := l_position.get(j);
+                            require(l_number.is_number(), 'Las coordenadas deben ser numeros no nulos.');
+                        end loop;
+                        l_x := l_position.get_number(0);
+                        l_y := l_position.get_number(1);
+                        require(l_x between -180 and 180 and l_y between -90 and 90,
+                            'Coordenadas fuera del rango WGS 84.');
+                    end;
+
+                    procedure validate_line(p_value json_element_t) is
+                        l_line json_array_t;
+                    begin
+                        require(p_value is not null, 'Faltan coordenadas de linea.');
+                        require(p_value.is_array(), 'Las coordenadas de linea deben ser un array.');
+                        l_line := treat(p_value as json_array_t);
+                        require(l_line.get_size() >= 2, 'Una linea requiere al menos dos posiciones.');
+                        for j in 0 .. l_line.get_size() - 1 loop
+                            validate_position(l_line.get(j));
+                        end loop;
+                    end;
+
+                    procedure reply is
+                    begin
+                        apex_json.open_object();
+                        apex_json.write('success', true);
+                        apex_json.write('inserted', l_inserted);
+                        apex_json.write('updated', l_updated);
+                        apex_json.write('deleted', l_deleted);
+                        apex_json.close_object();
+                    end;
+                begin
+                    savepoint page2_save;
+                    require(apex_authentication.is_authenticated, 'Debe iniciar sesion para guardar.');
+                    require(regexp_like(apex_application.g_x01, '^[0-9]{1,38}$'),
+                        'Debe indicar un FO_ID valido.');
+                    l_fo_id := to_number(apex_application.g_x01);
+                    require(l_fo_id > 0 and l_fo_id = to_number(:P2_TRAZADO_ID),
+                        'FO_ID no coincide con el trazado seleccionado.');
+                    require(regexp_like(l_token, '^[A-Za-z0-9-]{16,80}$'), 'Token de guardado invalido.');
+                    require(apex_application.g_f01.count > 0, 'No se recibio P2_GEOJSON.');
+                    dbms_lob.createtemporary(l_geojson, true);
+                    for i in 1 .. apex_application.g_f01.count loop
+                        if apex_application.g_f01(i) is not null then
+                            dbms_lob.writeappend(l_geojson, length(apex_application.g_f01(i)),
+                                apex_application.g_f01(i));
+                        end if;
+                        require(dbms_lob.getlength(l_geojson) <= c_max_chars,
+                            'El GeoJSON supera el limite de cinco millones de caracteres.');
+                    end loop;
+
+                    -- La fila padre serializa los guardados del mismo FO y sus reintentos.
+                    begin
+                        select id into l_locked_id from sgt_enlaces_fo where id = l_fo_id for update nowait;
+                    exception
+                        when no_data_found then raise_application_error(-20001, 'El FO_ID no existe.');
+                        when others then
+                            if sqlcode = -54 then
+                                raise_application_error(-20001, 'El trazado esta siendo guardado. Reintente.');
+                            end if;
+                            raise;
+                    end;
+                    for cached in (
+                        select n001, n002, n003, n004, clob001
+                        from apex_collections
+                        where collection_name = c_collection and c001 = l_token
+                    ) loop
+                        require(cached.n001 = l_fo_id and dbms_lob.compare(cached.clob001, l_geojson) = 0,
+                            'El token ya se utilizo para otro lote.');
+                        l_inserted := cached.n002;
+                        l_updated := cached.n003;
+                        l_deleted := cached.n004;
+                        commit; -- Liberar el bloqueo; el lote ya fue confirmado en esta sesion.
+                        dbms_lob.freetemporary(l_geojson);
+                        reply;
+                        return;
+                    end loop;
+
+                    begin
+                        l_document := json_object_t.parse(l_geojson);
+                    exception
+                        when others then raise_application_error(-20001, 'P2_GEOJSON no es un objeto JSON valido.');
+                    end;
+                    require(l_document.get_string('type') = 'FeatureCollection',
+                        'Se requiere una FeatureCollection GeoJSON.');
+                    require(not l_document.has('crs'), 'GeoJSON debe usar WGS 84 sin CRS alternativo.');
+                    l_element := l_document.get('features');
+                    require(l_element is not null, 'Falta el array features.');
+                    require(l_element.is_array(), 'features debe ser un array.');
+                    l_features := treat(l_element as json_array_t);
+                    if l_document.has('deletedRecordIds') then
+                        l_element := l_document.get('deletedRecordIds');
+                        require(l_element.is_array(), 'deletedRecordIds debe ser un array.');
+                        l_deletions := treat(l_element as json_array_t);
+                    end if;
+                    l_total := l_features.get_size() + l_deletions.get_size();
+                    require(l_total between 1 and 10000, 'El lote debe contener entre 1 y 10000 elementos.');
+
+                    -- Leer el SRID real del indice, sin fijar el esquema ni modificar metadatos.
+                    select srid, diminfo into l_srid, l_diminfo from user_sdo_geom_metadata
+                    where table_name = 'SGT_TRAZADOS_FO' and column_name = 'SDO_DATA';
+                    require((l_srid = 4326 and l_diminfo.count = 2) or
+                        (l_srid = 4327 and l_diminfo.count = 3),
+                        'La capa debe usar WGS 84 2D (4326) o WGS 84 3D (4327).');
+
+                    -- Primera pasada: validar TODO y convertir antes de ejecutar cualquier DML.
+                    for i in 1 .. l_features.get_size() loop
+                        l_element := l_features.get(i - 1);
+                        require(l_element.is_object(), 'Cada feature debe ser un objeto.');
+                        l_feature := treat(l_element as json_object_t);
+                        require(l_feature.get_string('type') = 'Feature', 'Se esperaba un objeto Feature.');
+                        l_element := l_feature.get('geometry');
+                        require(l_element is not null, 'Feature sin geometria.');
+                        require(l_element.is_object(), 'La geometria no puede ser nula.');
+                        l_geometry := treat(l_element as json_object_t);
+                        require(not l_geometry.has('crs'), 'Geometria con CRS alternativo.');
+                        l_rows(i).geometry_type := l_geometry.get_string('type');
+                        require(l_rows(i).geometry_type in ('Point', 'LineString', 'MultiPoint', 'MultiLineString'),
+                            'Solo se admiten Point, LineString, MultiPoint y MultiLineString.');
+                        l_element := l_geometry.get('coordinates');
+                        l_input_dimensions := null;
+                        if l_rows(i).geometry_type = 'Point' then
+                            validate_position(l_element);
+                        elsif l_rows(i).geometry_type = 'LineString' then
+                            validate_line(l_element);
+                        else
+                            require(l_element is not null, 'Faltan coordenadas.');
+                            require(l_element.is_array(), 'Las coordenadas deben ser un array.');
+                            l_coordinates := treat(l_element as json_array_t);
+                            require(l_coordinates.get_size() > 0, 'La geometria multiple no puede estar vacia.');
+                            for j in 0 .. l_coordinates.get_size() - 1 loop
+                                if l_rows(i).geometry_type = 'MultiPoint' then
+                                    validate_position(l_coordinates.get(j));
+                                else
+                                    validate_line(l_coordinates.get(j));
+                                end if;
+                            end loop;
+                        end if;
+                        l_properties := json_object_t();
+                        l_element := l_feature.get('properties');
+                        if l_element is not null then
+                            if not l_element.is_null() then
+                                require(l_element.is_object(), 'properties debe ser un objeto o null.');
+                                l_properties := treat(l_element as json_object_t);
+                            end if;
+                        end if;
+                        if l_properties.has('apexRecordId') then
+                            l_rows(i).id := record_id(l_properties.get('apexRecordId'));
+                            remember_id(l_rows(i).id);
+                            select count(*) into l_count from sgt_trazados_fo
+                            where id = l_rows(i).id and fo_id = l_fo_id;
+                            require(l_count = 1, 'Un registro no existe o no pertenece al FO_ID seleccionado.');
+                        else
+                            l_rows(i).name := optional_text(l_properties, 'name', 500);
+                            l_rows(i).description := optional_text(l_properties, 'description', 1500);
+                        end if;
+                        l_geometry_json := l_geometry.to_clob();
+                        l_rows(i).geometry := sdo_util.from_geojson(l_geometry_json, null,
+                            case when l_input_dimensions = 3 then 4327 else 4326 end);
+                        dbms_lob.freetemporary(l_geometry_json);
+                        if l_srid = 4327 and l_input_dimensions = 2 then
+                            l_rows(i).geometry := sdo_cs.make_3d(l_rows(i).geometry, 0, 4327);
+                        elsif l_srid = 4326 and l_input_dimensions = 3 then
+                            l_rows(i).geometry := sdo_cs.make_2d(l_rows(i).geometry, 4326);
+                        end if;
+                        -- Oracle 19c devuelve NULL al validar WGS 84 3D directamente.
+                        -- Validar la topologia horizontal en 2D; conservar la altura al guardar.
+                        if l_srid = 4327 then
+                            l_validation := sdo_geom.validate_geometry_with_context(
+                                sdo_cs.make_2d(l_rows(i).geometry, 4326), l_diminfo(1).sdo_tolerance);
+                        else
+                            l_validation := sdo_geom.validate_geometry_with_context(
+                                l_rows(i).geometry, l_diminfo(1).sdo_tolerance);
+                        end if;
+                        require(l_validation = 'TRUE', 'Geometria espacial invalida en el elemento ' || i || '.');
+                    end loop;
+                    for i in 1 .. l_deletions.get_size() loop
+                        l_delete_ids(i) := record_id(l_deletions.get(i - 1));
+                        remember_id(l_delete_ids(i));
+                        select count(*) into l_count from sgt_trazados_fo
+                        where id = l_delete_ids(i) and fo_id = l_fo_id;
+                        require(l_count = 1, 'Una eliminacion no pertenece al FO_ID seleccionado.');
+                    end loop;
+
+                    -- Segunda pasada: persistir el lote completo en una sola transaccion.
+                    for i in 1 .. l_rows.count loop
+                        if l_rows(i).id is null then
+                            insert into sgt_trazados_fo (fo_id, type, l_name, l_desc, sdo_data, creado_por, creado_el)
+                            values (l_fo_id, l_rows(i).geometry_type, l_rows(i).name, l_rows(i).description,
+                                l_rows(i).geometry, v('APP_USER'), systimestamp);
+                            l_inserted := l_inserted + 1;
+                        else
+                            -- Conservar L_NAME/L_DESC y demas atributos de los registros existentes.
+                            update sgt_trazados_fo
+                            set sdo_data = l_rows(i).geometry, type = l_rows(i).geometry_type,
+                                modificado_por = v('APP_USER'), modificado_el = systimestamp
+                            where id = l_rows(i).id and fo_id = l_fo_id;
+                            require(sql%rowcount = 1, 'El registro cambio durante el guardado.');
+                            l_updated := l_updated + 1;
+                        end if;
+                    end loop;
+                    for i in 1 .. l_delete_ids.count loop
+                        -- Solo IDs explicitamente eliminados; nunca borrar por ausencia en features.
+                        delete from sgt_trazados_fo where id = l_delete_ids(i) and fo_id = l_fo_id;
+                        require(sql%rowcount = 1, 'El registro eliminado cambio durante el guardado.');
+                        l_deleted := l_deleted + 1;
+                    end loop;
+                    if not apex_collection.collection_exists(c_collection) then
+                        apex_collection.create_collection(c_collection);
+                    end if;
+                    apex_collection.add_member(p_collection_name => c_collection, p_c001 => l_token,
+                        p_n001 => l_fo_id, p_n002 => l_inserted, p_n003 => l_updated, p_n004 => l_deleted,
+                        p_clob001 => l_geojson);
+                    commit;
+                    dbms_lob.freetemporary(l_geojson);
+                    reply;
+                exception
+                    when others then
+                        l_code := sqlcode;
+                        l_message := sqlerrm;
+                        rollback to page2_save;
+                        if dbms_lob.istemporary(l_geometry_json) = 1 then
+                            dbms_lob.freetemporary(l_geometry_json);
+                        end if;
+                        if dbms_lob.istemporary(l_geojson) = 1 then dbms_lob.freetemporary(l_geojson); end if;
+                        apex_debug.error('SAVE_MAP_FEATURES codigo=%s; %s',
+                            l_code, dbms_utility.format_error_backtrace);
+                        if l_code = -20001 then
+                            l_message := substr(l_message, instr(l_message, ':') + 2);
+                        else
+                            l_message := 'No se guardo ningun elemento. Revise las geometrías o contacte al administrador.';
+                        end if;
+                        apex_json.open_object();
+                        apex_json.write('success', false);
+                        apex_json.write('message', l_message);
+                        apex_json.close_object();
+                end;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: ajaxCallback
+        }
+        security {
+            authorizationScheme: mustNotBePublicUser
+        }
+    )
+
     dynamicAction preparar-encuadre (
         name: PREPARAR_ENCUADRE
         execution {
