@@ -15,7 +15,11 @@ page 1 (
             function showFeature( pId ) {
                 console.log("showFeature", pId);
                $s( "P1_EVENTO_ID", pId );
-                apex.event.trigger( $("#eventos-map-region"), "refresh_and_center" );
+                apex.event.trigger( $("#mapa-interactivo"), "refresh_and_center" );
+            }
+            
+            function filtrar_eventos(pId) {
+                console.log("filtra_eventos", pId);
             }
             ```
     }
@@ -40,6 +44,9 @@ page 1 (
                 t-Region--scrollBody
             ]
         }
+        headerAndFooter {
+            footerText: Al clickar sobre un elemento filtra el reporte de eventos.
+        }
         chartLayout {
             height: 400
         }
@@ -48,7 +55,7 @@ page 1 (
         }
 
         series series-1 (
-            name: Series 1
+            name: Eventos FO
             execution {
                 sequence: 10
             }
@@ -57,6 +64,7 @@ page 1 (
                 sqlQuery:
                     ```sql
                     SELECT lov.display_value AS label, 
+                           ESTADO, 
                            COUNT(ID) AS value 
                        from apex_application_lov_entries lov  
                        join
@@ -66,7 +74,8 @@ page 1 (
                        WHERE APPLICATION_ID = :APP_ID 
                        AND LIST_OF_VALUES_NAME = 'EVENTOS_ESTADOS'
                      
-                     GROUP BY lov.display_value;
+                     GROUP BY lov.display_value, ESTADO
+                     order by estado
                     
                     
                     ```
@@ -76,10 +85,8 @@ page 1 (
                 value: VALUE
             }
             link {
-                type: redirectThisApp
-                target: {
-                    page: 1
-                }
+                type: redirectUrl
+                targetUrl: javascript:apex.item('P1_ESTADO').setValue('&ESTADO!JS.');
             }
         )
 
@@ -178,7 +185,7 @@ page 1 (
     )
 
     region eventos-2 (
-        name: Eventos
+        name: Reporte
         type: interactiveReport
         source {
             location: localDatabase
@@ -189,9 +196,9 @@ page 1 (
                        ef.FO_ID,
                        TIPO_EVENTO,
                        TIPO_FALLA,
-                       ESTADO,
                        CRITICIDAD,
                        COMENTARIOS,
+                       ESTADO,
                        LON,
                        LAT,
                        FECHA_INICIO,
@@ -226,10 +233,14 @@ page 1 (
                       ON w.id = ew.wan_id
                     GROUP BY ew.fo_id
                 ) wan ON wan.fo_id = ef.fo_id
+                
+                --where estado = 3
+                WHERE :P1_ESTADO IS NULL OR ESTADO = :P1_ESTADO
                 ```
+            pageItemsToSubmit: P1_ESTADO
         }
         layout {
-            sequence: 60
+            sequence: 20
             slot: body
         }
         appearance {
@@ -353,21 +364,18 @@ page 1 (
         )
 
         column ESTADO (
-            type: plainTextBasedOnLov
+            type: plainText
             heading {
                 heading: Estado
             }
-            lov {
-                lov: @eventos-estados
-            }
             layout {
-                sequence: 50
+                sequence: 180
             }
             source {
                 dataType: STRING
             }
             advanced {
-                endUserAlias: E
+                endUserAlias: T
             }
         )
 
@@ -573,60 +581,44 @@ page 1 (
                 rowsPerPage: 50
             }
 
-            displayColumn CREADO_EL (
-                sequence: 12
-            )
-
-            displayColumn CREADO_POR (
-                sequence: 11
-            )
-
-            displayColumn CRITICIDAD (
-                sequence: 6
-            )
-
-            displayColumn ESTADO (
-                sequence: 5
-            )
-
-            displayColumn FECHA_FIN (
-                sequence: 10
-            )
-
-            displayColumn FECHA_INICIO (
-                sequence: 9
-            )
-
-            displayColumn FO_ID (
-                sequence: 2
-            )
-
-            displayColumn ID (
-                sequence: 1
-            )
-
-            displayColumn LAT (
-                sequence: 8
-            )
-
-            displayColumn LON (
+            displayColumn COMENTARIOS (
                 sequence: 7
             )
 
-            displayColumn MODIFICADO_EL (
-                sequence: 14
+            displayColumn CRITICIDAD (
+                sequence: 4
             )
 
-            displayColumn MODIFICADO_POR (
-                sequence: 13
+            displayColumn ENLACES_WAN (
+                sequence: 8
+            )
+
+            displayColumn ESTADO (
+                sequence: 9
+            )
+
+            displayColumn FECHA_FIN (
+                sequence: 6
+            )
+
+            displayColumn FECHA_INICIO (
+                sequence: 5
+            )
+
+            displayColumn FO_ID (
+                sequence: 1
+            )
+
+            displayColumn SERVICIOS (
+                sequence: 10
             )
 
             displayColumn TIPO_EVENTO (
-                sequence: 3
+                sequence: 2
             )
 
             displayColumn TIPO_FALLA (
-                sequence: 4
+                sequence: 3
             )
 
         )
@@ -635,14 +627,14 @@ page 1 (
 
     region eventos-map-region (
         name: EVENTOS_MAP_REGION
-        title: Eventos
+        title: Mapa Ubicación
         type: map
         source {
             location: localDatabase
-            tableName: SGT_TRAZADOS_FO2
+            tableName: SGT_TRAZADOS_FO
         }
         layout {
-            sequence: 70
+            sequence: 50
             slot: body
             startNewRow: false
         }
@@ -652,6 +644,9 @@ page 1 (
         }
         advanced {
             htmlDomId: eventos-map-region
+        }
+        config {
+            buildOption: @commented-out
         }
         map {
             height: 600
@@ -749,6 +744,429 @@ page 1 (
 
     )
 
+    region mapa-interactivo (
+        name: MAPA_INTERACTIVO
+        type: map
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /*
+                Consulta que devuelve los datos del trazado y la info de la tabla fo + servicios + wan
+                */
+                
+                select traza.ID,
+                       traza.FO_ID,
+                       L_NAME,
+                       L_DESC,
+                       SDO_DATA,
+                       ef.nombre,
+                    ef.cantidad_de_pelos,
+                	
+                    CASE 
+                        WHEN ef.tipo_cable NOT IN ('ADSS', 'ARMORED', 'OPGW') THEN 'COMBINADOS'
+                        ELSE ef.tipo_cable 
+                    END  FILTRO_CABLE,
+                    ef.tipo_cable, 
+                    ef."CERTIFICACIÓN" CERT,
+                
+                     srv.servicios AS SERVICIOS,
+                    WAN.ENLACES_WAN AS ENLACES_WAN
+                     
+                  from SGT_TRAZADOS_FO traza
+                
+                    --dmf: 2026-11-04: Ver todos los datos del trazado.
+                   
+                
+                   
+                
+                join sgt_enlaces_fo ef on traza.fo_id = ef.id
+                join sgt_sitios sa on ef.sitio_id_a = sa.id
+                join sgt_sitios sb on ef.sitio_id_b = sb.id
+                --dmf 2026-06-23: agregado para ver los servicios y enlaces wan
+                --dmf 2026-06-23: agregado para ver los servicios y enlaces wan
+                LEFT JOIN (
+                    SELECT es.fo_id,
+                           LISTAGG(DISTINCT s.nombre, ', ')
+                             WITHIN GROUP (ORDER BY s.nombre) servicios
+                    FROM sgt_equipos_servicio es
+                    JOIN sgt_servicios s
+                      ON s.id = es.servicio_id
+                    GROUP BY es.fo_id
+                ) srv ON srv.fo_id = ef.id
+                
+                --VER TODOS LOS ENLACES WAN QUE DEPENDE DE LA FIBRA
+                LEFT JOIN (
+                    SELECT ew.fo_id,
+                           LISTAGG(DISTINCT w.nombre, ', ')
+                             WITHIN GROUP (ORDER BY w.nombre) enlaces_wan
+                    FROM sgt_equipos_wan ew
+                    JOIN sgt_enlaces_wan w
+                      ON w.id = ew.wan_id
+                    GROUP BY ew.fo_id
+                ) wan ON wan.fo_id = ef.id
+                
+                where  
+                
+                /*
+                ( :P65_ZONAS is null
+                or
+                ef.sitio_id_a IN (select ID from sgt_sitios s where s.zona_id = :P65_ZONAS)
+                or
+                ef.sitio_id_b IN (select ID from sgt_sitios s where s.zona_id = :P65_ZONAS)
+                )
+                and (:P65_ENLACES_FO is null or ef.id = :P65_ENLACES_FO)
+                
+                --dmf 2026-06-23: agregado para ver los servicios y enlaces wan
+                --Filtrar solo los troncales
+                and */
+                (ef.tipo = 'Troncal')
+                
+                ```
+        }
+        layout {
+            sequence: 60
+            slot: body
+            startNewRow: false
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--removeHeader js-removeLandmark
+                t-Region--noBorder
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            htmlDomId: mapa-interactivo
+        }
+        map {
+            background: builtIn
+            standard: openstreetmapBright
+        }
+        controls {
+            options: [
+                scaleBar
+                getBrowserLocation
+            ]
+        }
+        initialPositionAndZoom {
+            type: staticValues
+            longitude: -57.3332
+            latitude: -25.3332
+            zoomLevel: 6
+        }
+        attributes {
+            messagesPosition: below
+        }
+
+        layer armored (
+            name: ARMORED
+            layerType: lines
+            label {
+                label: Armored
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                location: regionSource
+                useSpatialIndex: true
+            }
+            rowAssignment {
+                column: FILTRO_CABLE
+                valueForThisLayer: ARMORED
+            }
+            columnMapping {
+                geometryColumn: SDO_DATA
+                primaryKeyColumn: FO_ID
+            }
+            appearance {
+                strokeColor: #c99916
+            }
+            tooltip {
+                advancedFormatting: true
+                htmlExpression:
+                    ```html
+                    <b>FO: </b>&NOMBRE.<br/>
+                    <b>Nombre: </b>&L_NAME. <br/>
+                    <b>Descripción: </b>&L_DESC. <br/>
+                    <b>Cantidad de FO: </b>&CANTIDAD_DE_PELOS.
+                    <b>Tipo Cable: </b>&TIPO_CABLE.
+                    <b>Certificación: </b>&CERT. Km <br/>
+                    <b>Servicios: </b>&SERVICIOS.
+                    <b>Enlaces WAN: </b>&ENLACES_WAN.
+                    ```
+            }
+        )
+
+        layer combinados (
+            name: COMBINADOS
+            layerType: lines
+            label {
+                label: Combinados
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                location: regionSource
+                useSpatialIndex: true
+            }
+            rowAssignment {
+                column: FILTRO_CABLE
+                valueForThisLayer: COMBINADOS
+            }
+            columnMapping {
+                geometryColumn: SDO_DATA
+                primaryKeyColumn: FO_ID
+            }
+            appearance {
+                strokeColor: #2c39fa
+            }
+            tooltip {
+                advancedFormatting: true
+                htmlExpression:
+                    ```html
+                    <b>FO: </b>&NOMBRE.<br/>
+                    <b>Nombre: </b>&L_NAME. <br/>
+                    <b>Descripción: </b>&L_DESC. <br/>
+                    <b>Cantidad de FO: </b>&CANTIDAD_DE_PELOS.
+                    <b>Tipo Cable: </b>&TIPO_CABLE.
+                    <b>Certificación: </b>&CERT. Km <br/>
+                    <b>Servicios: </b>&SERVICIOS.
+                    <b>Enlaces WAN: </b>&ENLACES_WAN.
+                    ```
+            }
+        )
+
+        layer elementos (
+            name: ELEMENTOS
+            layout {
+                sequence: 70
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    select id,
+                           fo_id,
+                           capacidad,
+                           ubicacion,
+                           tipo_material,
+                           lon,
+                           lat,
+                           tipo_elemento,
+                           el.display_value as elemento,
+                           reserva_mts,
+                           cod_columna,
+                           comentarios
+                      from sgt_ceo_elementos
+                      join (select return_value,
+                             display_value
+                              from apex_application_lov_entries
+                             where application_id = :app_id
+                               and list_of_values_name = 'CEO_TIPO_ELEMENTO') el
+                        on el.return_value = nvl(to_char(tipo_elemento), '1')
+                    ```
+            }
+            columnMapping {
+                geometryColumnDataType: longitudeLatitude
+                longitudeColumn: LON
+                latitudeColumn: LAT
+            }
+            pointObjects {
+                shape: Square
+            }
+            tooltip {
+                advancedFormatting: true
+                htmlExpression:
+                    ```html
+                    Tipo de Elemento: &ELEMENTO. <br/>
+                    Reserva: &RESERVA.<br/>
+                    Ubicación: &UBICACION. <br/>
+                    Capacidad: &CAPACIDAD. <br/>
+                    Material: &TIPO_MATERIAL.<br/>
+                    Comentarios: &COMENTARIOS. <br/>
+                    ```
+            }
+            link {
+                type: redirectThisApp
+                target: {
+                    page: 8
+                    items: {
+                        P8_ID: &ID.
+                    }
+                }
+            }
+            config {
+                buildOption: @commented-out
+            }
+        )
+
+        layer eventos (
+            name: EVENTOS
+            layout {
+                sequence: 80
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    /*
+                    Lovs:
+                    --EVENTOS_TIPO
+                    --EVENTOS_ESTADOS
+                    */
+                    
+                    select ID,
+                           FO_ID,
+                           lov_tipo.display_value DISPLAY_TIPO_EVENTO,
+                           TIPO_FALLA,
+                           ESTADO,
+                           CRITICIDAD,
+                           LON,
+                           LAT,
+                           FECHA_INICIO,
+                           FECHA_FIN,
+                           CREADO_POR,
+                           CREADO_EL,
+                           MODIFICADO_POR,
+                           MODIFICADO_EL,
+                           COMENTARIOS
+                      from SGT_EVENTOS_FO
+                       
+                       join  apex_application_lov_entries lov_tipo on lov_tipo.return_value = TIPO_EVENTO
+                    
+                    
+                     WHERE APPLICATION_ID = :APP_ID 
+                       AND LIST_OF_VALUES_NAME = 'EVENTOS_TIPO'
+                       --and estado = 1
+                       and
+                       ID = :P1_EVENTO_ID
+                    ```
+                pageItemsToSubmit: P1_EVENTO_ID
+            }
+            columnMapping {
+                geometryColumnDataType: longitudeLatitude
+                longitudeColumn: LON
+                latitudeColumn: LAT
+                primaryKeyColumn: ID
+            }
+            pointObjects {
+                shape: Square Alternative
+            }
+            appearance {
+                fillColor: #f01111
+            }
+            tooltip {
+                advancedFormatting: true
+                htmlExpression:
+                    ```html
+                    Tipo Evento: &DISPLAY_TIPO_EVENTO. <br/>
+                    Tipo Falla: &TIPO_FALLA.<br/>
+                    Crticidad: &CRITICIDAD.<br/>
+                    Comentarios: &COMENTARIOS. <br/>
+                    ```
+            }
+            link {
+                type: redirectThisApp
+                target: {
+                    page: 10
+                    items: {
+                        P10_ID: &ID.
+                    }
+                }
+            }
+        )
+
+        layer new (
+            name: ADSS
+            layerType: lines
+            label {
+                label: ADSS
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                location: regionSource
+                useSpatialIndex: true
+            }
+            rowAssignment {
+                column: FILTRO_CABLE
+                valueForThisLayer: ADSS
+            }
+            columnMapping {
+                geometryColumn: SDO_DATA
+                primaryKeyColumn: FO_ID
+            }
+            appearance {
+                strokeColor: #4cd964
+            }
+            tooltip {
+                advancedFormatting: true
+                htmlExpression:
+                    ```html
+                    <b>FO: </b>&NOMBRE.<br/>
+                    <b>Nombre: </b>&L_NAME. <br/>
+                    <b>Descripción: </b>&L_DESC. <br/>
+                    <b>Cantidad de FO: </b>&CANTIDAD_DE_PELOS.
+                    <b>Tipo Cable: </b>&TIPO_CABLE.
+                    <b>Certificación: </b>&CERT. Km <br/>
+                    <b>Servicios: </b>&SERVICIOS.
+                    <b>Enlaces WAN: </b>&ENLACES_WAN.
+                    
+                    
+                    ```
+            }
+        )
+
+        layer opgw (
+            name: OPGW
+            layerType: lines
+            label {
+                label: OPGW
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                location: regionSource
+                useSpatialIndex: true
+            }
+            rowAssignment {
+                column: FILTRO_CABLE
+                valueForThisLayer: OPGW
+            }
+            columnMapping {
+                geometryColumn: SDO_DATA
+                primaryKeyColumn: FO_ID
+            }
+            appearance {
+                strokeColor: #79867b
+            }
+            tooltip {
+                advancedFormatting: true
+                htmlExpression:
+                    ```html
+                    <b>FO: </b>&NOMBRE.<br/>
+                    <b>Nombre: </b>&L_NAME. <br/>
+                    <b>Descripción: </b>&L_DESC. <br/>
+                    <b>Cantidad de FO: </b>&CANTIDAD_DE_PELOS.
+                    <b>Tipo Cable: </b>&TIPO_CABLE.
+                    <b>Certificación: </b>&CERT. Km <br/>
+                    <b>Servicios: </b>&SERVICIOS.
+                    <b>Enlaces WAN: </b>&ENLACES_WAN.
+                    ```
+            }
+        )
+
+    )
+
     region maps-dev (
         name: maps-dev
         type: staticContent
@@ -766,341 +1184,6 @@ page 1 (
         config {
             buildOption: @commented-out
         }
-    )
-
-    region new (
-        name: Listado
-        type: interactiveReport
-        source {
-            location: localDatabase
-            tableName: SGT_EVENTOS_FO
-        }
-        layout {
-            sequence: 50
-            slot: body
-        }
-        appearance {
-            template: @/interactive-report
-            templateOptions: [
-                #DEFAULT#
-                t-IRR-region--hideHeader js-addHiddenHeadingRoleDesc
-            ]
-        }
-        config {
-            buildOption: @commented-out
-        }
-        pagination {
-            type: rowRangesXToY
-        }
-        advanced {
-            savedReportMappingIdentifier: 11129995770761246
-        }
-
-        column CREADO_EL (
-            type: plainText
-            heading {
-                heading: Creado El
-            }
-            layout {
-                sequence: 120
-            }
-            source {
-                dataType: DATE
-            }
-            advanced {
-                endUserAlias: L
-            }
-        )
-
-        column CREADO_POR (
-            type: plainText
-            heading {
-                heading: Creado Por
-            }
-            layout {
-                sequence: 110
-            }
-            source {
-                dataType: STRING
-            }
-            advanced {
-                endUserAlias: K
-            }
-        )
-
-        column CRITICIDAD (
-            type: plainText
-            heading {
-                heading: Criticidad
-            }
-            layout {
-                sequence: 60
-            }
-            source {
-                dataType: STRING
-            }
-            advanced {
-                endUserAlias: F
-            }
-        )
-
-        column ESTADO (
-            type: plainText
-            heading {
-                heading: Estado
-            }
-            layout {
-                sequence: 50
-            }
-            source {
-                dataType: STRING
-            }
-            advanced {
-                endUserAlias: E
-            }
-        )
-
-        column FECHA_FIN (
-            type: plainText
-            heading {
-                heading: Fecha Fin
-            }
-            layout {
-                sequence: 100
-            }
-            source {
-                dataType: DATE
-            }
-            advanced {
-                endUserAlias: J
-            }
-        )
-
-        column FECHA_INICIO (
-            type: plainText
-            heading {
-                heading: Fecha Inicio
-            }
-            layout {
-                sequence: 90
-            }
-            source {
-                dataType: DATE
-            }
-            advanced {
-                endUserAlias: I
-            }
-        )
-
-        column FO_ID (
-            type: plainText
-            heading {
-                heading: Fo Id
-                alignment: end
-            }
-            layout {
-                sequence: 20
-                columnAlignment: end
-            }
-            source {
-                dataType: NUMBER
-            }
-            advanced {
-                endUserAlias: B
-            }
-        )
-
-        column ID (
-            type: plainText
-            heading {
-                heading: Id
-                alignment: end
-            }
-            layout {
-                sequence: 10
-                columnAlignment: end
-            }
-            source {
-                primaryKey: true
-                dataType: NUMBER
-            }
-            advanced {
-                endUserAlias: A
-            }
-        )
-
-        column LAT (
-            type: plainText
-            heading {
-                heading: Lat
-                alignment: end
-            }
-            layout {
-                sequence: 80
-                columnAlignment: end
-            }
-            source {
-                dataType: NUMBER
-            }
-            advanced {
-                endUserAlias: H
-            }
-        )
-
-        column LON (
-            type: plainText
-            heading {
-                heading: Lon
-                alignment: end
-            }
-            layout {
-                sequence: 70
-                columnAlignment: end
-            }
-            source {
-                dataType: NUMBER
-            }
-            advanced {
-                endUserAlias: G
-            }
-        )
-
-        column MODIFICADO_EL (
-            type: plainText
-            heading {
-                heading: Modificado El
-            }
-            layout {
-                sequence: 140
-            }
-            source {
-                dataType: DATE
-            }
-            advanced {
-                endUserAlias: N
-            }
-        )
-
-        column MODIFICADO_POR (
-            type: plainText
-            heading {
-                heading: Modificado Por
-            }
-            layout {
-                sequence: 130
-            }
-            source {
-                dataType: STRING
-            }
-            advanced {
-                endUserAlias: M
-            }
-        )
-
-        column TIPO_EVENTO (
-            type: plainTextBasedOnLov
-            heading {
-                heading: Causa Evento
-            }
-            lov {
-                lov: @eventos-tipo
-            }
-            layout {
-                sequence: 30
-            }
-            source {
-                dataType: STRING
-            }
-            advanced {
-                endUserAlias: C
-            }
-        )
-
-        column TIPO_FALLA (
-            type: plainText
-            heading {
-                heading: Tipo Falla
-            }
-            layout {
-                sequence: 40
-            }
-            source {
-                dataType: STRING
-            }
-            advanced {
-                endUserAlias: D
-            }
-        )
-
-        page {
-            borderWidth: 0.5
-            borderColor: #666666
-        }
-
-        savedReport primary (
-            visibility: primaryDefault
-            view {
-                rowsPerPage: 50
-            }
-
-            displayColumn CREADO_EL (
-                sequence: 12
-            )
-
-            displayColumn CREADO_POR (
-                sequence: 11
-            )
-
-            displayColumn CRITICIDAD (
-                sequence: 6
-            )
-
-            displayColumn ESTADO (
-                sequence: 5
-            )
-
-            displayColumn FECHA_FIN (
-                sequence: 10
-            )
-
-            displayColumn FECHA_INICIO (
-                sequence: 9
-            )
-
-            displayColumn FO_ID (
-                sequence: 2
-            )
-
-            displayColumn ID (
-                sequence: 1
-            )
-
-            displayColumn LAT (
-                sequence: 8
-            )
-
-            displayColumn LON (
-                sequence: 7
-            )
-
-            displayColumn MODIFICADO_EL (
-                sequence: 14
-            )
-
-            displayColumn MODIFICADO_POR (
-                sequence: 13
-            )
-
-            displayColumn TIPO_EVENTO (
-                sequence: 3
-            )
-
-            displayColumn TIPO_FALLA (
-                sequence: 4
-            )
-
-        )
-
     )
 
     region new_1 (
@@ -1235,6 +1318,18 @@ page 1 (
         }
     )
 
+    pageItem P1_ESTADO (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 60
+            region: @collapsible
+            slot: regionBody
+        }
+    )
+
     pageItem P1_EVENTO_ID (
         type: hidden
         settings {
@@ -1256,14 +1351,38 @@ page 1 (
             event: custom
             customEvent: refresh_and_center
             selectionType: jQuerySelector
-            jquerySelector: #eventos-map-region
+            jquerySelector: #mapa-interactivo
         }
 
         action native-refresh (
             action: refresh
             affectedElements {
                 selectionType: region
-                region: @eventos-map-region
+                region: @mapa-interactivo
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction refresh (
+        name: REFRESH
+        execution {
+            sequence: 40
+        }
+        when {
+            selectionType: items
+            items: P1_ESTADO
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @eventos-2
             }
             execution {
                 sequence: 10
@@ -1281,7 +1400,7 @@ page 1 (
         when {
             event: apexafterrefresh
             selectionType: region
-            region: @eventos-map-region
+            region: @mapa-interactivo
         }
 
         action native-javascript-code (
@@ -1291,7 +1410,7 @@ page 1 (
                     ```javascript-browser
                     console.log("showFeature", true);
                     
-                    var lMapRegion   = apex.region("eventos-map-region"),
+                    var lMapRegion   = apex.region("mapa-interactivo"),
                         // important: Use the layer name exactly as specified in the "name" attribute in Page Designer
                         lLayerId     = lMapRegion.call("getLayerIdByName", "EVENTOS"),
                         lCurrentZoom = lMapRegion.call("getMapCenterAndZoomLevel").zoom,

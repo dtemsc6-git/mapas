@@ -3,6 +3,7 @@
  * Los cambios son locales al navegador hasta implementar su persistencia.
  */
 (function (window, apex) {
+    
     "use strict";
 
     const regionId = "MAPA-GL";

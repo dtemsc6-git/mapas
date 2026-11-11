@@ -1,7 +1,7 @@
 page 4 (
-    name: Ver trazados
-    alias: VER-TRAZADOS
-    title: Ver trazados
+    name: GENERAR TRAZADOS
+    alias: GENERAR-TRAZADOS
+    title: Generar Trazados
     appearance {
         pageTemplate: @/standard
         templateOptions: #DEFAULT#

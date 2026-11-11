@@ -205,7 +205,7 @@ list navigation-menu (
     name: Navigation Menu
 
     entry buscar-fo (
-        label: Buscar FO
+        label: Eventos FO
         icon {
             imageIconCssClasses: fa-map-marker
         }
@@ -262,12 +262,12 @@ list navigation-menu (
     )
 
     entry mapa-interactivo (
-        label: mapa-interactivo
+        label: Editar trazados (En desarrollo)
         icon {
             imageIconCssClasses: fa-map-marker
         }
         layout {
-            sequence: 20
+            sequence: 40
         }
         isCurrent {
             type: pages
@@ -277,10 +277,6 @@ list navigation-menu (
             target: {
                 page: 2
             }
-        }
-        serverSideCondition {
-            type: request=Value
-            value: 1=0
         }
     )
 
@@ -323,6 +319,10 @@ list navigation-menu (
             target: {
                 page: 7
             }
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: 1=0
         }
     )
 

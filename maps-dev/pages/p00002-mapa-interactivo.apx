@@ -14,6 +14,7 @@ page 2 (
         fileUrls: [
             https://unpkg.com/@watergis/maplibre-gl-terradraw@1.16.0/dist/maplibre-gl-terradraw.umd.js
             #APP_FILES#page2.js
+            #APP_FILES#maps.js
         ]
         functionAndGlobalVariableDeclaration:
             ```javascript-browser
@@ -294,14 +295,27 @@ page 2 (
             items: P2_TRAZADO_ID
         }
 
+        action native-javascript-code (
+            name: encuadrarMapa
+            action: executeJsCode
+            settings {
+                jsCode: encuadrarTrazado("MAPA-GL");
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
         action native-refresh (
+            name: refrescarMapa
             action: refresh
             affectedElements {
                 selectionType: region
                 region: @mapa-gl
             }
             execution {
-                sequence: 10
+                sequence: 20
                 fireOnInit: false
             }
         )
@@ -325,6 +339,7 @@ page 2 (
                 jsCode:
                     ```javascript-browser
                     
+                    /*
                     const region = apex.region("MAPA-GL");
                     // Registrar antes del refresh y evitar manejadores duplicados.
                     region.element.off("apexafterrefresh.encuadrarTrazado")
@@ -352,7 +367,7 @@ page 2 (
                                 bearing: map.getBearing()
                             });
                         });
-                    
+                    */
                     ```
             }
             execution {

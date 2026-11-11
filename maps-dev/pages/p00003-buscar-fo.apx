@@ -11,6 +11,7 @@ page 3 (
         warnOnUnsavedChanges: false
     }
     javaScript {
+        fileUrls: #APP_FILES#maps.js
         functionAndGlobalVariableDeclaration:
             ```javascript-browser
             function centrarMapa(data) {
@@ -23,6 +24,7 @@ page 3 (
                     screenSpeed: 0.7
                 });
             }
+            
             
             function setFoId( pFoId ) {
                 console.log("setFoId", pFoId);
@@ -70,223 +72,6 @@ page 3 (
         formAutoComplete: false
     }
 
-    region buscar-fo (
-        name: Buscar FO
-        type: map
-        source {
-            location: localDatabase
-            tableName: SGT_TRAZADOS_FO
-        }
-        layout {
-            sequence: 10
-            slot: body
-        }
-        appearance {
-            template: @/standard
-            templateOptions: #DEFAULT#
-        }
-        advanced {
-            htmlDomId: mapa-fo-ande
-        }
-        map {
-            background: builtIn
-            standard: openstreetmapBright
-        }
-        controls {
-            options: [
-                mousewheelZoom
-                scaleBar
-                getBrowserLocation
-                distanceTool
-            ]
-        }
-        initialPositionAndZoom {
-            type: staticValues
-            longitude: -57.3332
-            latitude: -25.3332
-            zoomLevel: 6
-        }
-        attributes {
-            messagesPosition: below
-        }
-
-        layer buscar-fo (
-            name: CEOS
-            label {
-                label: CEO's
-            }
-            layout {
-                sequence: 10
-            }
-            source {
-                location: regionSource
-            }
-            columnMapping {
-                geometryColumn: SDO_DATA
-            }
-            pointObjects {
-                shape: Check
-            }
-            appearance {
-                fillColor: #ffcc00
-            }
-            infoWindow {
-                titleColumn: L_NAME
-                bodyColumn: L_DESC
-            }
-        )
-
-        layer elementos (
-            name: ELEMENTOS
-            layout {
-                sequence: 40
-            }
-            source {
-                tableName: SGT_CEO_ELEMENTOS
-            }
-            columnMapping {
-                geometryColumnDataType: longitudeLatitude
-                longitudeColumn: LON
-                latitudeColumn: LAT
-            }
-            pointObjects {
-                shape: Square
-            }
-            pointClustering {
-                enable: true
-                shape: Default
-            }
-            tooltip {
-                column: COMENTARIOS
-            }
-            link {
-                type: redirectThisApp
-                target: {
-                    page: 8
-                    items: {
-                        P8_ID: &ID.
-                    }
-                }
-            }
-        )
-
-        layer eventos (
-            name: EVENTOS
-            layout {
-                sequence: 50
-            }
-            source {
-                tableName: SGT_EVENTOS_FO
-                whereClause: estado = 1
-            }
-            columnMapping {
-                geometryColumnDataType: longitudeLatitude
-                longitudeColumn: LON
-                latitudeColumn: LAT
-                primaryKeyColumn: ID
-            }
-            pointObjects {
-                shape: Square Alternative
-            }
-            appearance {
-                fillColor: #f01111
-            }
-            pointClustering {
-                enable: true
-                shape: Flag Swallowtail
-            }
-            tooltip {
-                column: COMENTARIOS
-            }
-            link {
-                type: redirectThisApp
-                target: {
-                    page: 10
-                    items: {
-                        P10_ID: &ID.
-                    }
-                }
-            }
-        )
-
-        layer new (
-            name: TRAZADOS
-            layerType: lines
-            label {
-                label: Trazados
-            }
-            layout {
-                sequence: 20
-            }
-            source {
-                location: regionSource
-                useSpatialIndex: true
-            }
-            columnMapping {
-                geometryColumn: SDO_DATA
-                primaryKeyColumn: FO_ID
-            }
-            appearance {
-                strokeColor: #4cd964
-            }
-            tooltip {
-                advancedFormatting: true
-                htmlExpression:
-                    ```html
-                    <b>Nombre: </b>&L_NAME. <br/>
-                    <b>Descripción: </b>&L_DESC.
-                    ```
-            }
-            link {
-                type: redirectUrl
-                targetUrl: javascript:setFoId('&FO_ID.')
-            }
-        )
-
-        layer posicion-click (
-            name: PUNTO_CLICK
-            label {
-                label: Marcador
-            }
-            layout {
-                sequence: 30
-            }
-            source {
-                type: sqlQuery
-                sqlQuery:
-                    ```sql
-                    select 0 as id, mdsys.sdo_util.from_geojson( :P3_CLICK_POSICION) as geometry 
-                      from sys.dual
-                     where :P3_CLICK_POSICION is not null
-                    ```
-                pageItemsToSubmit: P3_CLICK_POSICION
-            }
-            columnMapping {
-                geometryColumn: GEOMETRY
-                primaryKeyColumn: ID
-            }
-            pointObjects {
-                shape: Pin Circle
-            }
-            appearance {
-                fillColor: #ff3b30
-                strokeColor: #ff9500
-            }
-            link {
-                type: redirectThisApp
-                target: {
-                    page: 5
-                    items: {
-                        P5_FO_ID: &P3_FO_ID.
-                        P5_LAT: &P3_LAT.
-                        P5_LNG: &P3_LONG.
-                    }
-                }
-            }
-        )
-
-    )
-
     region dialogo-2 (
         name: dialogo_2
         type: staticContent
@@ -323,6 +108,510 @@ page 3 (
                 js-dialog-size600x400
             ]
         }
+    )
+
+    region mapa-fo-ande (
+        name: Buscar FO
+        type: map
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /*
+                Consulta que devuelve los datos del trazado y la info de la tabla fo + servicios + wan
+                */
+                
+                select traza.ID,
+                       traza.FO_ID,
+                       L_NAME,
+                       L_DESC,
+                       SDO_DATA,
+                       ef.nombre,
+                    ef.cantidad_de_pelos,
+                	
+                    CASE 
+                        WHEN ef.tipo_cable NOT IN ('ADSS', 'ARMORED', 'OPGW') THEN 'COMBINADOS'
+                        ELSE ef.tipo_cable 
+                    END  FILTRO_CABLE,
+                    ef.tipo_cable, 
+                    ef."CERTIFICACIÓN" CERT,
+                
+                     srv.servicios AS SERVICIOS,
+                    WAN.ENLACES_WAN AS ENLACES_WAN
+                     
+                  from SGT_TRAZADOS_FO traza
+                
+                    --dmf: 2026-11-04: Ver todos los datos del trazado.
+                   
+                
+                   
+                
+                join sgt_enlaces_fo ef on traza.fo_id = ef.id
+                join sgt_sitios sa on ef.sitio_id_a = sa.id
+                join sgt_sitios sb on ef.sitio_id_b = sb.id
+                --dmf 2026-06-23: agregado para ver los servicios y enlaces wan
+                --dmf 2026-06-23: agregado para ver los servicios y enlaces wan
+                LEFT JOIN (
+                    SELECT es.fo_id,
+                           LISTAGG(DISTINCT s.nombre, ', ')
+                             WITHIN GROUP (ORDER BY s.nombre) servicios
+                    FROM sgt_equipos_servicio es
+                    JOIN sgt_servicios s
+                      ON s.id = es.servicio_id
+                    GROUP BY es.fo_id
+                ) srv ON srv.fo_id = ef.id
+                
+                --VER TODOS LOS ENLACES WAN QUE DEPENDE DE LA FIBRA
+                LEFT JOIN (
+                    SELECT ew.fo_id,
+                           LISTAGG(DISTINCT w.nombre, ', ')
+                             WITHIN GROUP (ORDER BY w.nombre) enlaces_wan
+                    FROM sgt_equipos_wan ew
+                    JOIN sgt_enlaces_wan w
+                      ON w.id = ew.wan_id
+                    GROUP BY ew.fo_id
+                ) wan ON wan.fo_id = ef.id
+                
+                where  
+                
+                /*
+                ( :P65_ZONAS is null
+                or
+                ef.sitio_id_a IN (select ID from sgt_sitios s where s.zona_id = :P65_ZONAS)
+                or
+                ef.sitio_id_b IN (select ID from sgt_sitios s where s.zona_id = :P65_ZONAS)
+                )
+                and (:P65_ENLACES_FO is null or ef.id = :P65_ENLACES_FO)
+                
+                --dmf 2026-06-23: agregado para ver los servicios y enlaces wan
+                --Filtrar solo los troncales
+                and */
+                (ef.tipo = 'Troncal')
+                and (:P3_FO_ID IS NULL OR traza.fo_id = :P3_FO_ID)
+                
+                ```
+            pageItemsToSubmit: P3_FO_ID
+        }
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--removeHeader js-removeLandmark
+                t-Region--noBorder
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            htmlDomId: mapa-fo-ande
+        }
+        map {
+            background: builtIn
+            standard: openstreetmapBright
+            height: 600
+        }
+        controls {
+            options: [
+                mousewheelZoom
+                scaleBar
+                getBrowserLocation
+                distanceTool
+            ]
+        }
+        attributes {
+            messagesPosition: below
+        }
+
+        layer armored (
+            name: ARMORED
+            layerType: lines
+            label {
+                label: Armored
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                location: regionSource
+                useSpatialIndex: true
+            }
+            rowAssignment {
+                column: FILTRO_CABLE
+                valueForThisLayer: ARMORED
+            }
+            columnMapping {
+                geometryColumn: SDO_DATA
+                primaryKeyColumn: FO_ID
+            }
+            appearance {
+                strokeColor: #c99916
+            }
+            tooltip {
+                advancedFormatting: true
+                htmlExpression:
+                    ```html
+                    <b>FO: </b>&NOMBRE.<br/>
+                    <b>Nombre: </b>&L_NAME. <br/>
+                    <b>Descripción: </b>&L_DESC. <br/>
+                    <b>Cantidad de FO: </b>&CANTIDAD_DE_PELOS.
+                    <b>Tipo Cable: </b>&TIPO_CABLE.
+                    <b>Certificación: </b>&CERT. Km <br/>
+                    <b>Servicios: </b>&SERVICIOS.
+                    <b>Enlaces WAN: </b>&ENLACES_WAN.
+                    ```
+            }
+            link {
+                type: redirectUrl
+                targetUrl: javascript:setFoId('&FO_ID.')
+            }
+        )
+
+        layer buscar-fo (
+            name: CEOS
+            label {
+                label: CEO's
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                geometryColumn: SDO_DATA
+            }
+            pointObjects {
+                shape: Check
+            }
+            appearance {
+                fillColor: #ffcc00
+            }
+            infoWindow {
+                titleColumn: L_NAME
+                bodyColumn: L_DESC
+            }
+        )
+
+        layer combinados (
+            name: COMBINADOS
+            layerType: lines
+            label {
+                label: Combinados
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                location: regionSource
+                useSpatialIndex: true
+            }
+            rowAssignment {
+                column: FILTRO_CABLE
+                valueForThisLayer: COMBINADOS
+            }
+            columnMapping {
+                geometryColumn: SDO_DATA
+                primaryKeyColumn: FO_ID
+            }
+            appearance {
+                strokeColor: #2c39fa
+            }
+            tooltip {
+                advancedFormatting: true
+                htmlExpression:
+                    ```html
+                    <b>FO: </b>&NOMBRE.<br/>
+                    <b>Nombre: </b>&L_NAME. <br/>
+                    <b>Descripción: </b>&L_DESC. <br/>
+                    <b>Cantidad de FO: </b>&CANTIDAD_DE_PELOS.
+                    <b>Tipo Cable: </b>&TIPO_CABLE.
+                    <b>Certificación: </b>&CERT. Km <br/>
+                    <b>Servicios: </b>&SERVICIOS.
+                    <b>Enlaces WAN: </b>&ENLACES_WAN.
+                    ```
+            }
+            link {
+                type: redirectUrl
+                targetUrl: javascript:setFoId('&FO_ID.')
+            }
+        )
+
+        layer elementos (
+            name: ELEMENTOS
+            layout {
+                sequence: 70
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    select id,
+                           fo_id,
+                           capacidad,
+                           ubicacion,
+                           tipo_material,
+                           lon,
+                           lat,
+                           tipo_elemento,
+                           el.display_value as elemento,
+                           reserva_mts,
+                           cod_columna,
+                           comentarios
+                      from sgt_ceo_elementos
+                      join (select return_value,
+                             display_value
+                              from apex_application_lov_entries
+                             where application_id = :app_id
+                               and list_of_values_name = 'CEO_TIPO_ELEMENTO') el
+                        on el.return_value = nvl(to_char(tipo_elemento), '1')
+                    
+                        where (:P3_FO_ID IS NULL OR fo_id = :P3_FO_ID)
+                    ```
+                pageItemsToSubmit: P3_FO_ID
+            }
+            columnMapping {
+                geometryColumnDataType: longitudeLatitude
+                longitudeColumn: LON
+                latitudeColumn: LAT
+            }
+            pointObjects {
+                shape: Square
+            }
+            tooltip {
+                advancedFormatting: true
+                htmlExpression:
+                    ```html
+                    Tipo de Elemento: &ELEMENTO. <br/>
+                    Reserva: &RESERVA.<br/>
+                    Ubicación: &UBICACION. <br/>
+                    Capacidad: &CAPACIDAD. <br/>
+                    Material: &TIPO_MATERIAL.<br/>
+                    Comentarios: &COMENTARIOS. <br/>
+                    ```
+            }
+            link {
+                type: redirectThisApp
+                target: {
+                    page: 8
+                    items: {
+                        P8_ID: &ID.
+                    }
+                }
+            }
+        )
+
+        layer eventos (
+            name: EVENTOS
+            layout {
+                sequence: 80
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    /*
+                    Lovs:
+                    --EVENTOS_TIPO
+                    --EVENTOS_ESTADOS
+                    */
+                    
+                    select ID,
+                           FO_ID,
+                           lov_tipo.display_value DISPLAY_TIPO_EVENTO,
+                           TIPO_FALLA,
+                           ESTADO,
+                           CRITICIDAD,
+                           LON,
+                           LAT,
+                           FECHA_INICIO,
+                           FECHA_FIN,
+                           CREADO_POR,
+                           CREADO_EL,
+                           MODIFICADO_POR,
+                           MODIFICADO_EL,
+                           COMENTARIOS
+                      from SGT_EVENTOS_FO
+                       
+                       join  apex_application_lov_entries lov_tipo on lov_tipo.return_value = TIPO_EVENTO
+                    
+                    
+                     WHERE APPLICATION_ID = :APP_ID 
+                       AND LIST_OF_VALUES_NAME = 'EVENTOS_TIPO'
+                       and estado = 1
+                       and (:P3_FO_ID IS NULL OR fo_id = :P3_FO_ID)
+                    ```
+                pageItemsToSubmit: P3_FO_ID
+            }
+            columnMapping {
+                geometryColumnDataType: longitudeLatitude
+                longitudeColumn: LON
+                latitudeColumn: LAT
+                primaryKeyColumn: ID
+            }
+            pointObjects {
+                shape: Square Alternative
+            }
+            appearance {
+                fillColor: #f01111
+            }
+            tooltip {
+                advancedFormatting: true
+                htmlExpression:
+                    ```html
+                    Tipo Evento: &DISPLAY_TIPO_EVENTO. <br/>
+                    Tipo Falla: &TIPO_FALLA.<br/>
+                    Crticidad: &CRITICIDAD.<br/>
+                    Comentarios: &COMENTARIOS. <br/>
+                    ```
+            }
+            link {
+                type: redirectThisApp
+                target: {
+                    page: 10
+                    items: {
+                        P10_ID: &ID.
+                    }
+                }
+            }
+        )
+
+        layer new (
+            name: ADSS
+            layerType: lines
+            label {
+                label: ADSS
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                location: regionSource
+                useSpatialIndex: true
+            }
+            rowAssignment {
+                column: FILTRO_CABLE
+                valueForThisLayer: ADSS
+            }
+            columnMapping {
+                geometryColumn: SDO_DATA
+                primaryKeyColumn: FO_ID
+            }
+            appearance {
+                strokeColor: #4cd964
+            }
+            tooltip {
+                advancedFormatting: true
+                htmlExpression:
+                    ```html
+                    <b>FO: </b>&NOMBRE.<br/>
+                    <b>Nombre: </b>&L_NAME. <br/>
+                    <b>Descripción: </b>&L_DESC. <br/>
+                    <b>Cantidad de FO: </b>&CANTIDAD_DE_PELOS.
+                    <b>Tipo Cable: </b>&TIPO_CABLE.
+                    <b>Certificación: </b>&CERT. Km <br/>
+                    <b>Servicios: </b>&SERVICIOS.
+                    <b>Enlaces WAN: </b>&ENLACES_WAN.
+                    
+                    
+                    ```
+            }
+            link {
+                type: redirectUrl
+                targetUrl: javascript:setFoId('&FO_ID.')
+            }
+        )
+
+        layer opgw (
+            name: OPGW
+            layerType: lines
+            label {
+                label: OPGW
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                location: regionSource
+                useSpatialIndex: true
+            }
+            rowAssignment {
+                column: FILTRO_CABLE
+                valueForThisLayer: OPGW
+            }
+            columnMapping {
+                geometryColumn: SDO_DATA
+                primaryKeyColumn: FO_ID
+            }
+            appearance {
+                strokeColor: #79867b
+            }
+            tooltip {
+                advancedFormatting: true
+                htmlExpression:
+                    ```html
+                    <b>FO: </b>&NOMBRE.<br/>
+                    <b>Nombre: </b>&L_NAME. <br/>
+                    <b>Descripción: </b>&L_DESC. <br/>
+                    <b>Cantidad de FO: </b>&CANTIDAD_DE_PELOS.
+                    <b>Tipo Cable: </b>&TIPO_CABLE.
+                    <b>Certificación: </b>&CERT. Km <br/>
+                    <b>Servicios: </b>&SERVICIOS.
+                    <b>Enlaces WAN: </b>&ENLACES_WAN.
+                    ```
+            }
+            link {
+                type: redirectUrl
+                targetUrl: javascript:setFoId('&FO_ID.')
+            }
+        )
+
+        layer posicion-click (
+            name: PUNTO_CLICK
+            label {
+                label: Marcador
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    select 0 as id, mdsys.sdo_util.from_geojson( :P3_CLICK_POSICION) as geometry 
+                      from sys.dual
+                     where :P3_CLICK_POSICION is not null
+                    ```
+                pageItemsToSubmit: P3_CLICK_POSICION
+            }
+            columnMapping {
+                geometryColumn: GEOMETRY
+                primaryKeyColumn: ID
+            }
+            pointObjects {
+                shape: Pin Circle
+            }
+            appearance {
+                fillColor: #ff3b30
+                strokeColor: #ff9500
+            }
+            link {
+                type: redirectThisApp
+                target: {
+                    page: 5
+                    items: {
+                        P5_FO_ID: &P3_FO_ID.
+                        P5_LAT: &P3_LAT.
+                        P5_LNG: &P3_LONG.
+                    }
+                }
+            }
+        )
+
     )
 
     region mensaje (
@@ -955,6 +1244,9 @@ page 3 (
                 t-IRR-region--hideHeader js-addHiddenHeadingRoleDesc
             ]
         }
+        config {
+            buildOption: @commented-out
+        }
         link {
             linkColumn: customTarget
             target: {
@@ -1358,7 +1650,7 @@ page 3 (
         }
         layout {
             sequence: 70
-            region: @buscar-fo
+            region: @mapa-fo-ande
             slot: regionBody
         }
     )
@@ -1370,17 +1662,13 @@ page 3 (
             alignment: left
         }
         lov {
-            type: sqlQuery
-            sqlQuery:
-                ```sql
-                select nombre, id 
-                from sgt_enlaces_fo
-                ```
+            type: sharedComponent
+            lov: @trazados-name
             nullDisplayValue: Seleccione Una
         }
         layout {
             sequence: 80
-            region: @buscar-fo
+            region: @mapa-fo-ande
             slot: regionBody
             alignment: left
         }
@@ -1399,7 +1687,7 @@ page 3 (
         }
         layout {
             sequence: 60
-            region: @buscar-fo
+            region: @mapa-fo-ande
             slot: regionBody
             alignment: left
             startNewRow: false
@@ -1422,7 +1710,7 @@ page 3 (
         }
         layout {
             sequence: 50
-            region: @buscar-fo
+            region: @mapa-fo-ande
             slot: regionBody
             alignment: left
         }
@@ -1449,7 +1737,7 @@ page 3 (
         }
         layout {
             sequence: 30
-            region: @buscar-fo
+            region: @mapa-fo-ande
             slot: regionBody
             alignment: left
             startNewRow: false
@@ -1472,7 +1760,7 @@ page 3 (
         }
         layout {
             sequence: 20
-            region: @buscar-fo
+            region: @mapa-fo-ande
             slot: regionBody
             alignment: left
             startNewRow: false
@@ -1489,7 +1777,7 @@ page 3 (
         label: Limpiar
         layout {
             sequence: 40
-            region: @buscar-fo
+            region: @mapa-fo-ande
             slot: regionBody
             startNewRow: false
             columnSpan: 2
@@ -1516,7 +1804,7 @@ page 3 (
         when {
             event: region/map/spatialmapclick
             selectionType: region
-            region: @buscar-fo
+            region: @mapa-fo-ande
         }
 
         action abrirmodal_1 (
@@ -1646,7 +1934,7 @@ page 3 (
         when {
             event: region/map/spatialmapobjectclick
             selectionType: region
-            region: @buscar-fo
+            region: @mapa-fo-ande
         }
 
         action abrirmodal (
@@ -1764,7 +2052,7 @@ page 3 (
     )
 
     dynamicAction new_1 (
-        name: TOOGLE_MENSAJE
+        name: CH_FO_ID_2
         execution {
             sequence: 50
         }
@@ -1777,6 +2065,18 @@ page 3 (
             item: P3_FO_ID
         }
 
+        action encuadrarmapa (
+            name: encuadrarMapa
+            action: executeJsCode
+            settings {
+                jsCode: encuadrarTrazado("mapa-fo-ande");
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
         action native-hide (
             action: hide
             affectedElements {
@@ -1784,7 +2084,33 @@ page 3 (
                 region: @mensaje
             }
             execution {
-                sequence: 10
+                sequence: 40
+            }
+        )
+
+        action native-refresh (
+            name: refrescarMapa
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @mapa-fo-ande
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh_1 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @mapa-fo-ande
+            }
+            execution {
+                sequence: 20
+                fireWhenEventResultIs: false
+                fireOnInit: false
             }
         )
 
@@ -1803,7 +2129,7 @@ page 3 (
     )
 
     dynamicAction new_2 (
-        name: New
+        name: CLICK_LIMPIAR
         execution {
             sequence: 90
         }
@@ -1837,12 +2163,15 @@ page 3 (
             selectionType: region
             region: @dialogo-3
         }
+        config {
+            buildOption: @commented-out
+        }
 
         action native-refresh (
             action: refresh
             affectedElements {
                 selectionType: region
-                region: @buscar-fo
+                region: @mapa-fo-ande
             }
             execution {
                 sequence: 10
@@ -1853,7 +2182,7 @@ page 3 (
     )
 
     dynamicAction nuevo (
-        name: TOOGLE_LAT_LONG
+        name: CH_PORT_LAT_LNG
         execution {
             sequence: 10
         }
@@ -1900,7 +2229,7 @@ page 3 (
     )
 
     dynamicAction refresh (
-        name: REFRESH
+        name: CH_CLICK_POSICION
         execution {
             sequence: 40
         }
@@ -1913,7 +2242,7 @@ page 3 (
             action: refresh
             affectedElements {
                 selectionType: region
-                region: @buscar-fo
+                region: @mapa-fo-ande
             }
             execution {
                 sequence: 10
@@ -1931,12 +2260,15 @@ page 3 (
                 sequence: 30
                 fireOnInit: false
             }
+            config {
+                buildOption: @commented-out
+            }
         )
 
     )
 
     dynamicAction setear-valores (
-        name: setear valores
+        name: LF_URL
         execution {
             sequence: 20
         }
