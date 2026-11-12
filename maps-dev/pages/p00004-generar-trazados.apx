@@ -14,6 +14,7 @@ page 4 (
         fileUrls: [
             https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js
             https://unpkg.com/@tmcw/togeojson@5.8.1/dist/togeojson.umd.js
+            #APP_FILES#maps.js
         ]
         functionAndGlobalVariableDeclaration:
             ```javascript-browser
@@ -152,7 +153,14 @@ page 4 (
                             //Para evitar la doble conversion
                             const miBlob = b64toBlob(apiData.kmz_data, apiData.mimetype);
                             const json = await loadKMZFromDatabase(miBlob);
-                            cargarDatos(json);  
+            
+                            logEventToItem("JSON.FeatureCollection", `longitud de los features: ${json.FeatureCollection.lenght}`)
+            
+                            json.FeatureCollection.features.each((feature) => {  console.log("${feature.length}", feature.lenght); logEventToItem("JSON.Features", `longitud de los features: ${feature.length}`)})
+            
+                            let newJson = analizarCoordenadasDuplicadas(json);
+                            
+                            cargarDatos(newJson);  
             
                         },
                         error: function (error) {
@@ -182,276 +190,26 @@ page 4 (
                     popup.remove();
                 });
             }
+            
+            window.logEventToItem = function(eventName, details = "") {
+                const timestamp = new Date().toLocaleTimeString();
+                const logEntry = `[${timestamp}] ${eventName}: ${JSON.stringify(details)}\n`;
+                
+                // Obtenemos el valor actual del item
+                let currentLog = apex.item("P4_LOG").getValue();
+                
+                // Concatenamos y actualizamos el item
+                apex.item("P4_LOG").setValue(logEntry + currentLog);
+                
+                // Opcional: Mostrar en consola para debug mientras desarrollas
+                console.log("Log registrado:", eventName, details);
+            };
             ```
     }
     security {
         pageAccessProtection: argumentsMustHaveChecksum
         formAutoComplete: false
     }
-
-    region nuevo (
-        name: Nuevo
-        type: themeTemplateComponent/contentRow
-        source {
-            location: localDatabase
-            type: sqlQuery
-            sqlQuery:
-                ```sql
-                select ARCH.ID,
-                       ENTIDAD,
-                       PK_ID,
-                       ARCH.ESTADO,
-                       FO.NOMBRE,
-                       FO.CERTIFICACIÓN,
-                       FILE_NAME,
-                       FILE_MIMETYPE,
-                       FILE_CHARSET,
-                       FILE_BLOB,
-                       ARCH.OBSERVACIONES,
-                       ARCH.CREADO_POR,
-                       ARCH.CREADO_EL,
-                       ARCH.ACTUALIZADO_POR,
-                       ARCH.ACTUALIZADO_EL,
-                       INTERNAL_ATTR
-                  from SGT_ARCHIVOS ARCH
-                   JOIN SGT_ENLACES_FO FO ON PK_ID = FO.ID
-                
-                   WHERE ENTIDAD = 5
-                
-                ```
-        }
-        layout {
-            sequence: 20
-            slot: REGION_POSITION_02
-        }
-        appearance {
-            template: @/blank-with-attributes-no-grid
-            templateOptions: #DEFAULT#
-        }
-        accessibility {
-            landmarkType: region
-        }
-        advanced {
-            customAttributes: data-id=&ID.
-        }
-        componentAppearance {
-            display: report
-        }
-        settings {
-            overline: &CREADO_POR. EL: &CREADO_EL.
-            title: &NOMBRE.
-            description: &OBSERVACIONES.
-            miscellaneous: &CERTIFICACION.
-            displayAvatar: true
-        }
-        plugin-avatar {
-            icon: fa-line-map
-        }
-        rowSelection {
-            type: singleSelection
-            currentSelectionPageItem: P4_SELECCION
-        }
-
-        column ACTUALIZADO_EL (
-            layout {
-                sequence: 230
-            }
-            source {
-                databaseColumn: ACTUALIZADO_EL
-                dataType: timestamp
-            }
-        )
-
-        column ACTUALIZADO_POR (
-            layout {
-                sequence: 220
-            }
-            source {
-                databaseColumn: ACTUALIZADO_POR
-                dataType: varchar2
-            }
-        )
-
-        column CERTIFICACIÓN (
-            layout {
-                sequence: 330
-            }
-            source {
-                databaseColumn: CERTIFICACIÓN
-                dataType: number
-            }
-        )
-
-        column CREADO_EL (
-            layout {
-                sequence: 210
-            }
-            source {
-                databaseColumn: CREADO_EL
-                dataType: timestamp
-            }
-        )
-
-        column CREADO_POR (
-            layout {
-                sequence: 200
-            }
-            source {
-                databaseColumn: CREADO_POR
-                dataType: varchar2
-            }
-        )
-
-        column ENTIDAD (
-            layout {
-                sequence: 240
-            }
-            source {
-                databaseColumn: ENTIDAD
-                dataType: number
-            }
-        )
-
-        column ESTADO (
-            layout {
-                sequence: 150
-            }
-            source {
-                databaseColumn: ESTADO
-                dataType: number
-            }
-        )
-
-        column FILE_BLOB (
-            layout {
-                sequence: 290
-            }
-            source {
-                databaseColumn: FILE_BLOB
-                dataType: blob
-            }
-        )
-
-        column FILE_CHARSET (
-            layout {
-                sequence: 280
-            }
-            source {
-                databaseColumn: FILE_CHARSET
-                dataType: varchar2
-            }
-        )
-
-        column FILE_MIMETYPE (
-            layout {
-                sequence: 270
-            }
-            source {
-                databaseColumn: FILE_MIMETYPE
-                dataType: varchar2
-            }
-        )
-
-        column FILE_NAME (
-            layout {
-                sequence: 260
-            }
-            source {
-                databaseColumn: FILE_NAME
-                dataType: varchar2
-            }
-        )
-
-        column ID (
-            layout {
-                sequence: 10
-            }
-            source {
-                databaseColumn: ID
-                dataType: number
-                primaryKey: true
-            }
-        )
-
-        column INTERNAL_ATTR (
-            layout {
-                sequence: 310
-            }
-            source {
-                databaseColumn: INTERNAL_ATTR
-                dataType: varchar2
-            }
-        )
-
-        column NOMBRE (
-            layout {
-                sequence: 320
-            }
-            source {
-                databaseColumn: NOMBRE
-                dataType: varchar2
-            }
-        )
-
-        column OBSERVACIONES (
-            layout {
-                sequence: 300
-            }
-            source {
-                databaseColumn: OBSERVACIONES
-                dataType: varchar2
-            }
-        )
-
-        column PK_ID (
-            layout {
-                sequence: 250
-            }
-            source {
-                databaseColumn: PK_ID
-                dataType: number
-            }
-        )
-
-        action action (
-            position: primaryActions
-            template: menu
-            label: Nuevo
-            layout {
-                sequence: 10
-            }
-
-            menu nuevo (
-                label: Nuevo
-                layout {
-                    sequence: 10
-                }
-                behavior {
-                    target: {
-                        page: 2
-                    }
-                }
-            )
-
-        )
-
-    )
-
-    region nuevo_1 (
-        name: Nuevo
-        type: staticContent
-        layout {
-            sequence: 10
-            slot: REGION_POSITION_02
-        }
-        appearance {
-            template: @/standard
-            templateOptions: [
-                #DEFAULT#
-                t-Region--scrollBody
-            ]
-        }
-    )
 
     region ruta-de-navegación (
         name: Ruta de Navegación
@@ -472,81 +230,6 @@ page 4 (
         }
         componentAppearance {
             breadcrumbTemplate: @/breadcrumb
-            templateOptions: #DEFAULT#
-        }
-    )
-
-    region ver-trazados (
-        name: Mapa
-        type: map
-        layout {
-            sequence: 70
-            slot: body
-        }
-        appearance {
-            template: @/standard
-            templateOptions: #DEFAULT#
-        }
-        advanced {
-            htmlDomId: Mapa
-        }
-        config {
-            buildOption: @commented-out
-        }
-        controls {
-            options: [
-                scaleBar
-                rectangleZoom
-                distanceTool
-            ]
-        }
-        attributes {
-            messagesPosition: below
-        }
-
-        layer ver-trazados (
-            name: TRAZADOS
-            label {
-                label: Sample Data
-            }
-            layout {
-                sequence: 20
-            }
-            source {
-                type: sqlQuery
-                sqlQuery: select -25.2876535 lat , -57.6131447 lon, '' json from dual;
-            }
-            columnMapping {
-                geometryColumnDataType: longitudeLatitude
-                longitudeColumn: LON
-                latitudeColumn: LAT
-            }
-            tooltip {
-                advancedFormatting: true
-                htmlExpression: <strong>&NAME. (&JOB.)</strong>
-            }
-            infoWindow {
-                advancedFormatting: true
-                htmlExpression: <strong>&NAME.</strong><br><img src="#APEX_FILES#sample_data/employees/&AVATAR_IMAGE." alt="Avatar of &NAME." title="Avatar of &NAME." width="100">
-            }
-        )
-
-    )
-
-    pageItem P4_ALL (
-        type: checkbox
-        label {
-            label: Todos
-            alignment: left
-        }
-        layout {
-            sequence: 10
-            region: @nuevo_1
-            slot: regionBody
-            alignment: left
-        }
-        appearance {
-            template: @/optional-floating
             templateOptions: #DEFAULT#
         }
     )
@@ -617,6 +300,25 @@ page 4 (
         }
     )
 
+    pageItem P4_LOG (
+        type: textarea
+        label {
+            label: Log
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            slot: body
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+            height: 5
+        }
+    )
+
     pageItem P4_RESULTADO_SIN_DUP (
         type: textarea
         label {
@@ -633,25 +335,6 @@ page 4 (
             templateOptions: #DEFAULT#
             width: 30
             height: 5
-        }
-    )
-
-    pageItem P4_SELECCION (
-        type: textField
-        label {
-            label: Nuevo
-            alignment: left
-        }
-        layout {
-            sequence: 20
-            region: @nuevo_1
-            slot: regionBody
-            alignment: left
-        }
-        appearance {
-            template: @/optional-floating
-            templateOptions: #DEFAULT#
-            width: 30
         }
     )
 
@@ -769,25 +452,43 @@ page 4 (
                 jsCode:
                     ```javascript-browser
                     apex.server.process(
-                            'GET_KMZ', { pageItems: ['P4_ARCHIVOS_KMZ'] },
-                            {
-                                success: async function (apiData) {
+                        'GET_KMZ', { pageItems: ['P4_ARCHIVOS_KMZ'] },
+                        {
+                            success: async function (apiData) {
                     
-                                    console.log("Resultado de la petición:", apiData);
-                                  
-                                    //Para evitar la doble conversion
-                                    const miBlob = b64toBlob(apiData.kmz_data, apiData.mimetype);
-                                    const json = await loadKMZFromDatabase(miBlob);
-                                    $s('P4_GEOJSON', JSON.stringify(json));
-                                    //cargarDatos(json) ; 
+                                logEventToItem("GET_KMZ", "EXITO");
                     
-                                },
-                                error: function (error) {
-                                    console.log("Se produjo un error:");
-                                    console.log(error);
-                                }
+                    
+                    
+                                //Para evitar la doble conversion
+                                const miBlob = b64toBlob(apiData.kmz_data, apiData.mimetype);
+                                const json = await loadKMZFromDatabase(miBlob);
+                    
+                                console.log(json);
+                    
+                                logEventToItem("JSON.FeatureCollection ", "Cantidad de features:" + json.features.length)
+                    
+                                // Usamos forEach para mayor legibilidad y evitar errores de índice
+                                json.features.forEach(feature => {
+                                    logEventToItem("feature.geom.length ", `longitud de las geometrias: ${feature.geometry.coordinates.length}`);
+                                });
+                    
+                                let newJson = analizarCoordenadasDuplicadas(json);
+                    
+                    
+                    
+                                $s('P4_GEOJSON', JSON.stringify(newJson));
+                                //cargarDatos(json) ; 
+                    
+                            },
+                            error: function (error) {
+                                console.log("Se produjo un error:");
+                                console.log(error);
+                                logEventToItem("GET_KMZ", "SE PRODUJO UN ERROR");
+                    
                             }
-                        );
+                        }
+                    );
                     ```
             }
             execution {
@@ -824,11 +525,15 @@ page 4 (
                      * Las propiedades se compartiran.
                     */
                     function analizarCoordenadasDuplicadas(geojson, tol = 0.0005) {
+                    
+                        logEventToItem("analizarCoordenadasDuplicadas ", "Inicio");
+                        
                         let coords = [];
                         // Extract de coordenadas según el tipo de estructura GeoJSON
                         if (Array.isArray(geojson)) {
                             coords = geojson;
                         } else if (geojson.type === 'FeatureCollection') {
+                           
                             geojson.features.forEach(f => {
                                 if (f.geometry && f.geometry.coordinates) {
                                     coords = coords.concat(f.geometry.coordinates);
@@ -841,6 +546,7 @@ page 4 (
                         }
                     
                         console.log(`Total de puntos analizados: ${coords.length}`);
+                        logEventToItem("analizarCoordenadasDuplicadas ", `Total de puntos a analizar: ${coords.length}`);
                     
                         const indicesAEliminar = new Set();
                         const duplicadosConsecutivos = [];
@@ -886,11 +592,13 @@ page 4 (
                         }
                         // Reporte en Consola
                         console.group('--- RESULTADOS DEL ANÁLISIS ---');
+                        
                     
                         // Filtrar la lista original excluyendo los índices duplicados
                         const coordsLimpias = coords.filter((_, index) => !indicesAEliminar.has(index));
                         
                         console.warn(`Puntos Duplicados/Similares CONSECUTIVOS: ${duplicadosConsecutivos.length}`);
+                        logEventToItem("analizarCoordenadasDuplicadas ", `RPuntos Duplicados/Similares CONSECUTIVOS: ${duplicadosConsecutivos.length}`);
                         if (duplicadosConsecutivos.length > 0) {
                             console.table(duplicadosConsecutivos);
                         }
@@ -902,6 +610,8 @@ page 4 (
                         console.groupEnd();
                         return coordsLimpias;
                     }
+                    
+                    
                     ```
             }
             execution {
@@ -1518,13 +1228,14 @@ page 4 (
                 El parametro 4326 es el SRID definido por defecto para esta app.
                 Por alguna razon oracle sdo_util setea por defecto el 4327, al comienzo me creo el indice por defecto en ese sistema
                 voy a averiguar cual es el sistema predefinido para utlizarlo como es predefinido por ORACLE.
+                2026-11-11: Sigo con el mismo indice espacial SRID 4327 de 3 coordenadas.
                 */
                 declare
                 v_id integer := 0;
                 returned_json CLOB;
                 
                 --Declarar el cursor que se utilizara
-                Cursor c_geojson is (SELECT v_id AS ID, jt.type as type, JT.l_name, JT.l_desc,  sdo_util.from_GEOJSON(jt.geometry, NULL ,4326) AS geom
+                Cursor c_geojson is (SELECT v_id AS ID, jt.type as type, JT.l_name, JT.l_desc,  sdo_util.from_GEOJSON(jt.geometry, NULL ,4327) AS geom
                 FROM 
                      JSON_TABLE(
                         :P4_GEOJSON, 
@@ -1608,87 +1319,6 @@ page 4 (
         }
         advanced {
             executionMappingIdentifier: 10419711690306121
-        }
-    )
-
-    process save-trazado (
-        name: SAVE_TRAZADO
-        type: executeCode
-        source {
-            plsqlCode:
-                ```plsql
-                /*
-                Obtener un trazado y cargar los datos en la tabla de trazados.
-                */
-                declare
-                v_id integer := 0;
-                
-                json_error EXCEPTION;
-                PRAGMA EXCEPTION_INIT(json_error, -40441);
-                --PRAGMA EXCEPTION_INIT(, -40441);
-                
-                begin
-                
-                select pk_id into v_id from sgt_archivos where id = :P4_ARCHIVOS_KMZ;
-                
-                -- no encontro el enlace lanzar un error
-                IF (v_id = 0) then
-                   RAISE_APPLICATION_ERROR(-20001, 'No se encontró el enlace especificado.');
-                end if;   
-                
-                
-                --para evitar duplicados limpiar todos los datos relacionados a este v_id
-                -- No implementado aún
-                
-                
-                INSERT INTO SGT_TRAZADOS_FO2 (FO_ID, TYPE ,L_NAME, L_DESC, SDO_DATA)
-                with data as (
-                    SELECT v_id AS ID, jt.type as type, JT.l_name, JT.l_desc,  SDO_UTIL.FROM_GEOJSON(JSON_SERIALIZE (jt.geometry )) AS geom
-                FROM 
-                     JSON_TABLE(
-                        :P4_GEOJSON, 
-                       '$.features[*]'
-                       COLUMNS (
-                         type path '$.geometry.type',
-                         geometry CLOB FORMAT JSON PATH '$.geometry',
-                         l_name path '$.properties.name',
-                         l_desc path '$.properties.description'
-                       )
-                     ) jt
-                )
-                SELECT id, type, l_name, l_desc, geom FROM data;
-                
-                --iterar los datos
-                
-                
-                
-                --apex.debug
-                
-                apex_json.open_object; 
-                apex_json.write('success', true);
-                apex_json.write('RegistrosInsertados', SQL%ROWCOUNT);
-                apex_json.close_object;
-                
-                EXCEPTION
-                   when json_error THEN
-                        apex_json.open_object; 
-                        apex_json.write('geo_json', LENGTH(:P4_GEOJSON ));
-                        apex_json.write('sql_error', SQLERRM);
-                        apex_json.write('error', true);
-                        apex_json.close_object;  
-                   
-                end;
-                ```
-        }
-        execution {
-            sequence: 40
-            point: ajaxCallback
-        }
-        advanced {
-            executionMappingIdentifier: 10418399322306107
-        }
-        config {
-            buildOption: @commented-out
         }
     )
 

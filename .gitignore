@@ -5,3 +5,4 @@ blueprint/
 docs/
 tests/
 AGENTS.md
+maps-dev/shared-components/static-files/*.min.js
