@@ -1,6 +1,7 @@
 /* Pagina 2: controles Terra Draw sobre la region APEX MAPA-GL.
  * GeoJSON en WGS 84: longitud, latitud; sin transformacion del CRS.
  * Guardar persiste el lote mediante SAVE_MAP_FEATURES en la pagina 2.
+ * 2026-11-11: Se cambia el proceso de validación.
  */
 (function (window, apex) {
     
@@ -161,14 +162,52 @@
             }
             const records = new Set();
             collection.features.forEach((feature, index) => {
-                const parts = geometryParts(feature.geometry);
-                if (feature.type !== "Feature" || !parts.length ||
-                    !parts.every(part => part.type === "Point"
-                        ? validPosition(part.coordinates)
-                        : Array.isArray(part.coordinates) && part.coordinates.length >= 2 &&
-                            part.coordinates.every(validPosition))) {
-                    throw new Error(`El elemento ${index + 1} tiene una geometria invalida.`);
+                const label = `El elemento ${index + 1}`;
+                // Los registros APEX no necesitan declarar type: "Feature".
+                if (!feature?.geometry || typeof feature.geometry.type !== "string") {
+                    throw new Error(`${label} no tiene una geometria con type valido.`);
                 }
+                if (!["Point", "LineString", "MultiPoint", "MultiLineString"].includes(feature.geometry.type)) {
+                    throw new Error(`${label} tiene un tipo de geometria no admitido.`);
+                }
+                const parts = geometryParts(feature.geometry);
+                if (!parts.length) {
+                    throw new Error(`${label} no contiene partes: revise el array coordinates.`);
+                }
+                parts.forEach((part, partIndex) => {
+                    const partLabel = `${label}, parte ${partIndex + 1}`;
+                    function checkPosition(position, positionIndex) {
+                        const positionLabel = `${partLabel}, posicion ${positionIndex + 1}`;
+                        if (!Array.isArray(position)) {
+                            throw new Error(`${positionLabel}: las coordenadas deben ser un array.`);
+                        }
+                        if (![2, 3].includes(position.length)) {
+                            throw new Error(`${positionLabel}: se requieren 2 o 3 coordenadas.`);
+                        }
+                        position.forEach((value, coordinateIndex) => {
+                            if (!Number.isFinite(value)) {
+                                throw new Error(`${positionLabel}, coordenada ${coordinateIndex + 1}: debe ser un numero finito, no texto ni null.`);
+                            }
+                        });
+                        if (Math.abs(position[0]) > 180) {
+                            throw new Error(`${positionLabel}: longitud fuera del rango -180 a 180.`);
+                        }
+                        if (Math.abs(position[1]) > 90) {
+                            throw new Error(`${positionLabel}: latitud fuera del rango -90 a 90.`);
+                        }
+                    }
+                    if (part.type === "Point") {
+                        checkPosition(part.coordinates, 0);
+                    } else {
+                        if (!Array.isArray(part.coordinates)) {
+                            throw new Error(`${partLabel}: las coordenadas de linea deben ser un array.`);
+                        }
+                        if (part.coordinates.length < 2) {
+                            throw new Error(`${partLabel}: una linea requiere al menos dos posiciones.`);
+                        }
+                        part.coordinates.forEach(checkPosition);
+                    }
+                });
                 const dimensions = new Set(parts.flatMap(part => part.type === "Point"
                     ? [part.coordinates.length] : part.coordinates.map(position => position.length)));
                 if (dimensions.size !== 1) {

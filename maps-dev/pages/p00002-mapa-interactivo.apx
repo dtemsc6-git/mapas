@@ -539,9 +539,9 @@ page 2 (
                     -- Primera pasada: validar TODO y convertir antes de ejecutar cualquier DML.
                     for i in 1 .. l_features.get_size() loop
                         l_element := l_features.get(i - 1);
-                        require(l_element.is_object(), 'Cada feature debe ser un objeto.');
+                        require(l_element.is_object(), 'Cada elemento debe ser un objeto con geometria.');
                         l_feature := treat(l_element as json_object_t);
-                        require(l_feature.get_string('type') = 'Feature', 'Se esperaba un objeto Feature.');
+                        -- Los registros APEX no necesitan declarar type: "Feature".
                         l_element := l_feature.get('geometry');
                         require(l_element is not null, 'Feature sin geometria.');
                         require(l_element.is_object(), 'La geometria no puede ser nula.');
