@@ -83,10 +83,10 @@ page 2 (
     )
 
     region mapa (
-        name: Mapa
+        name: Log
         type: staticContent
         layout {
-            sequence: 20
+            sequence: 70
             slot: body
         }
         appearance {
@@ -197,23 +197,11 @@ page 2 (
     )
 
     pageItem P2_GEOJSON (
-        type: textarea
-        label {
-            label: Geojson
-            alignment: left
-        }
+        type: hidden
         layout {
             sequence: 60
-            slot: body
-            alignment: left
-            startNewRow: false
-            columnSpan: 2
-        }
-        appearance {
-            template: @/optional-floating
-            templateOptions: #DEFAULT#
-            width: 30
-            height: 5
+            region: @mapa
+            slot: regionBody
         }
     )
 
@@ -312,6 +300,21 @@ page 2 (
             items: P2_TRAZADO_ID
         }
 
+        action hay-cambios (
+            name: Hay cambios
+            action: executeJsCode
+            settings {
+                jsCode: console.log("")
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+            config {
+                buildOption: @commented-out
+            }
+        )
+
         action native-javascript-code (
             name: encuadrarMapa
             action: executeJsCode
@@ -323,7 +326,7 @@ page 2 (
                     ```
             }
             execution {
-                sequence: 10
+                sequence: 20
                 fireOnInit: false
             }
         )
@@ -336,63 +339,7 @@ page 2 (
                 region: @mapa-gl
             }
             execution {
-                sequence: 20
-                fireOnInit: false
-            }
-        )
-
-    )
-
-    dynamicAction preparar-encuadre (
-        name: PREPARAR_ENCUADRE
-        execution {
-            sequence: 20
-        }
-        when {
-            event: apexafterrefresh
-            selectionType: region
-            region: @mapa-gl
-        }
-
-        action native-javascript-code (
-            action: executeJsCode
-            settings {
-                jsCode:
-                    ```javascript-browser
-                    
-                    /*
-                    const region = apex.region("MAPA-GL");
-                    // Registrar antes del refresh y evitar manejadores duplicados.
-                    region.element.off("apexafterrefresh.encuadrarTrazado")
-                        .one("apexafterrefresh.encuadrarTrazado", function () {
-                            const bbox = region.mapData?.map?.bbox;
-                            const map = region.getMapObject();
-                            if (!map || !Array.isArray(bbox)) {
-                                return;
-                            }
-                            // Coordenadas WGS 84: longitud, latitud; sin transformacion.
-                            const coordinates = bbox.flat();
-                            if (coordinates.length !== 4 ||
-                                !coordinates.every(Number.isFinite)) {
-                                return;
-                            }
-                            const [west, south, east, north] = coordinates;
-                            if (west < -180 || east > 180 || west > east ||
-                                south < -90 || north > 90 || south > north) {
-                                return;
-                            }
-                            map.fitBounds([[west, south], [east, north]], {
-                                padding: 40,
-                                maxZoom: 16,
-                                duration: 700,
-                                bearing: map.getBearing()
-                            });
-                        });
-                    */
-                    ```
-            }
-            execution {
-                sequence: 10
+                sequence: 30
                 fireOnInit: false
             }
         )
