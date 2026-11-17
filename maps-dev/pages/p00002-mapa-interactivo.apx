@@ -318,10 +318,7 @@ page 2 (
             settings {
                 jsCode:
                     ```javascript-browser
-                    let date = Date.toString(); 
-                    let pre  = $v("P2_LOG");
-                    let msg  =  `[${date}]: Encuadrar mapa: \n`
-                    $s("P2_LOG", msg + pre);
+                    page2.log("Encuadrar mapa.");
                     encuadrarTrazado("MAPA-GL");
                     ```
             }

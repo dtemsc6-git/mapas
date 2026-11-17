@@ -11,9 +11,20 @@
     const coordinatePrecision = 9;
     const initializedMaps = new WeakSet();
 
+    // Historial visual de la pagina; no constituye una auditoria persistente.
+    function log(message) {
+        const item = apex.item("P2_LOG");
+        if (!item.node) return;
+        const timestamp = new Date().toLocaleTimeString("es-PY", { hour12: false });
+        const previous = String(item.getValue() || "");
+        const lines = [`[${timestamp}] ${String(message).replace(/[\r\n]+/g, " ")}`,
+            ...previous.split("\n").filter(Boolean)];
+        item.setValue(lines.slice(0, 200).join("\n"), null, true);
+    }
+
     // Implementa TerraDrawSessionUndoRedoInterface. WaterGIS conserva sus botones
     // y atajos nativos; cada entrada incluye tambien los cambios en capas APEX.
-    function createHistory(capture, restore, canEdit = () => true) {
+    function createHistory(capture, restore, canEdit = () => true, onChange = () => {}) {
         let draw, notify, current;
         const undo = [], redo = [];
         function emit(cause) {
@@ -27,6 +38,7 @@
             from.pop();
             to.push(current);
             current = target;
+            onChange(to[to.length - 1], current, cause);
             emit(cause);
             return true;
         }
@@ -43,6 +55,7 @@
                 if (draw.getModeState() === "drawing") return;
                 const next = capture();
                 if (current && JSON.stringify(current) !== JSON.stringify(next)) {
+                    onChange(current, next, "edit");
                     undo.push(current);
                     if (undo.length > 100) undo.shift();
                     redo.length = 0;
@@ -67,7 +80,7 @@
         let pendingSave;
         let loadedFoId = String(apex.item("P2_TRAZADO_ID").getValue() || "");
         let saveButton;
-        const history = createHistory(captureState, restoreState, () => !saving);
+        const history = createHistory(captureState, restoreState, () => !saving, logChanges);
         // Extender onAdd (IControl) permite insertar Guardar en la misma barra
         // sin acceder a propiedades privadas del control WaterGIS.
         class Page2DrawControl extends Control {
@@ -105,6 +118,38 @@
         const selected = new Set();
         let synchronizing = false;
         let refreshGeneration = 0;
+
+        function logChanges(previous, next, cause) {
+            if (cause !== "edit") {
+                log(cause === "undo" ? "Deshizo el ultimo cambio local." : "Rehizo el ultimo cambio local.");
+                return;
+            }
+            // El guardado y los refrescos limpian el historial, no son ediciones.
+            if (saving) return;
+            const before = new Map(previous.features.map(feature => [String(feature.id), feature]));
+            const after = new Map(next.features.map(feature => [String(feature.id), feature]));
+            for (const id of new Set([...before.keys(), ...after.keys()])) {
+                const oldFeature = before.get(id), newFeature = after.get(id);
+                const geometry = (newFeature || oldFeature).geometry;
+                const name = geometry.type.includes("Point") ? "punto" : "trazado";
+                if (!oldFeature) log(`Creo ${name} nuevo (pendiente de guardar).`);
+                else if (!newFeature) log(`Elimino ${name} nuevo (cambio local).`);
+                else if (JSON.stringify(oldFeature.geometry) !== JSON.stringify(newFeature.geometry)) {
+                    log(`Edito ${name === "punto" ? "posicion de punto" : "geometria de trazado"} nuevo (pendiente de guardar).`);
+                }
+            }
+            const oldChanges = new Map(previous.changes), newChanges = new Map(next.changes);
+            for (const key of new Set([...oldChanges.keys(), ...newChanges.keys()])) {
+                const entry = originals.get(key);
+                if (!entry) continue;
+                const beforeParts = oldChanges.get(key), afterParts = newChanges.get(key);
+                if (JSON.stringify(beforeParts) === JSON.stringify(afterParts)) continue;
+                const name = entry.original.geometry.type.includes("Point") ? "punto" : "trazado";
+                const action = afterParts?.length === 0 ? "Elimino" :
+                    name === "punto" ? "Edito posicion de" : "Edito geometria de";
+                log(`${action} ${name}, registro ${entry.original.id} (pendiente de guardar).`);
+            }
+        }
 
         function liveFeatures() {
             return draw.getSnapshot().filter(feature =>
@@ -145,6 +190,7 @@
         }
 
         function showSaveError(message) {
+            log(`Error de guardado: ${message}`);
             apex.message.showErrors([{ type: "error", location: "page",
                 message, unsafe: true }]);
         }
@@ -275,6 +321,7 @@
                 if (!wasDisabled) foItem.enable();
             }
             saving = true;
+            log(`Inicio guardado del trazado ${foId}.`);
             saveButton.disabled = true;
             mapElement.inert = true;
             foItem.disable();
@@ -310,6 +357,7 @@
                         updateGeoJSON();
                         history.commit();
                         const counts = ["inserted", "updated", "deleted"].map(key => Number(data[key]) || 0);
+                        log(`Guardado confirmado: ${counts[0]} nuevos, ${counts[1]} actualizados, ${counts[2]} eliminados.`);
                         apex.message.showPageSuccess(
                             `Guardado: ${counts[0]} nuevos, ${counts[1]} actualizados, ` +
                             `${counts[2]} eliminados.`);
@@ -535,6 +583,7 @@
                         });
                     }
                     completed.delete(key);
+                    log(`Selecciono ${parts[0].type === "Point" ? "punto" : "trazado"}, registro ${entry.original.id}.`);
                 } catch (error) {
                     draw.removeFeatures(entry.ids);
                     if (!region.getFeature(layerId, entry.original.id)) {
@@ -612,11 +661,19 @@
     }
 
     function init() {
+        const logItem = apex.item("P2_LOG");
+        if (logItem.node) logItem.node.readOnly = true;
+        apex.jQuery(document)
+            .off("change.page2Log", "#P2_TRAZADO_ID")
+            .on("change.page2Log", "#P2_TRAZADO_ID", () => {
+                const id = apex.item("P2_TRAZADO_ID").getValue();
+                log(id ? `Selecciono trazado ${id}.` : "Quito la seleccion del trazado.");
+            });
         apex.jQuery(document)
             .off("spatialmapinitialized.page2", "#" + regionId)
             .on("spatialmapinitialized.page2", "#" + regionId, initializeMap);
         initializeMap();
     }
 
-    window.page2 = { init };
+    window.page2 = { init, log };
 })(window, apex);
